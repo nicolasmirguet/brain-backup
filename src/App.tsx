@@ -15,7 +15,7 @@ import { CreateChecklistModal } from '@/components/CreateChecklistModal';
 import { HistoryTab } from '@/components/HistoryTab';
 import { DumpThoughtsModal } from '@/components/DumpThoughtsModal';
 import { Plus, LayoutList, CheckSquare, BrainCircuit, Frown, Bell, Activity, CalendarClock, MessageSquare, Moon, RotateCcw } from 'lucide-react';
-import { playTimerAlert, playEssentialAlarm, primeAlertAudio } from '@/lib/alerts';
+import { playTimerAlert, playEssentialAlarm, primeAlertAudio, type EssentialAlarmTheme } from '@/lib/alerts';
 import {
   notificationsSupported,
   requestEssentialNotificationPermission,
@@ -107,7 +107,9 @@ export default function App() {
   const [checklists, setChecklists] = useState<Checklist[]>(INITIAL_CHECKLISTS);
   const [essentials, setEssentials] = useState<Essential[]>(INITIAL_ESSENTIALS);
   const [brainPoints, setBrainPoints] = useState<number>(0);
+  const [essentialAlarmTheme, setEssentialAlarmTheme] = useState<EssentialAlarmTheme>('alarm');
   const loadedRef = useRef(false);
+  const essentialAlarmThemeRef = useRef<EssentialAlarmTheme>('alarm');
 
   // Load all state from Firestore on mount
   useEffect(() => {
@@ -116,11 +118,14 @@ export default function App() {
       loadFromFirestore<Checklist[]>('bb_checklists', INITIAL_CHECKLISTS),
       loadFromFirestore<Essential[]>('bb_essentials', INITIAL_ESSENTIALS),
       loadFromFirestore<number>('bb_points', 0),
-    ]).then(([t, c, e, p]) => {
+      loadFromFirestore<EssentialAlarmTheme>('bb_essential_alarm_theme', 'alarm'),
+    ]).then(([t, c, e, p, theme]) => {
       setTasks(t);
       setChecklists(c);
       setEssentials(e);
       setBrainPoints(p);
+      setEssentialAlarmTheme(theme);
+      essentialAlarmThemeRef.current = theme;
       loadedRef.current = true;
     });
   }, []);
@@ -130,6 +135,7 @@ export default function App() {
   useEffect(() => { if (loadedRef.current) saveToFirestore('bb_checklists', checklists); }, [checklists]);
   useEffect(() => { if (loadedRef.current) saveToFirestore('bb_essentials', essentials); }, [essentials]);
   useEffect(() => { if (loadedRef.current) saveToFirestore('bb_points', brainPoints); }, [brainPoints]);
+  useEffect(() => { if (loadedRef.current) saveToFirestore('bb_essential_alarm_theme', essentialAlarmTheme); }, [essentialAlarmTheme]);
 
   const [energyLevel, setEnergyLevel] = useState<EnergyLevel>('functional');
   const [activeTab, setActiveTab] = useState<'tasks' | 'launchpads' | 'essentials' | 'history'>('tasks');
@@ -151,6 +157,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    essentialAlarmThemeRef.current = essentialAlarmTheme;
+  }, [essentialAlarmTheme]);
+
+  useEffect(() => {
     const runEssentialCheck = () => {
       if (!loadedRef.current) return;
       setEssentials(prev => {
@@ -159,7 +169,7 @@ export default function App() {
         if (dueItems.length === 0) return prev;
         const ids = new Set(dueItems.map(e => e.id));
         queueMicrotask(() => {
-          void playEssentialAlarm();
+          void playEssentialAlarm(essentialAlarmThemeRef.current);
           showEssentialDueNotification(dueItems.map(e => e.title));
           const msg =
             dueItems.length === 1
@@ -585,6 +595,37 @@ export default function App() {
                   <Plus className="w-5 h-5" />
                   <span className="font-black uppercase tracking-wider text-sm whitespace-nowrap">Add Essential</span>
                 </button>
+              </div>
+              <div className="mb-4 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-black uppercase tracking-wider text-zinc-200">Alarm sound</p>
+                    <p className="text-xs text-zinc-500 mt-1">Pick a vibe for essential reminders.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={essentialAlarmTheme}
+                      onChange={(e) => setEssentialAlarmTheme(e.target.value as EssentialAlarmTheme)}
+                      className="bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="alarm">Alarm</option>
+                      <option value="chill">Chill</option>
+                      <option value="funny">Funny</option>
+                      <option value="scifi">Sci‑fi</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => void playEssentialAlarm(essentialAlarmTheme)}
+                      className="rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-3 py-2 text-sm font-black uppercase tracking-wider text-zinc-200"
+                      title="Test essential alarm"
+                    >
+                      Test
+                    </button>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs leading-relaxed text-zinc-500">
+                  Note: we can’t include copyrighted themes (like the Star Wars melody), but the “Sci‑fi” option is a similar vibe without copying a song.
+                </p>
               </div>
               {notificationsSupported() ? (
                 <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4 text-sm text-zinc-300">
