@@ -9,6 +9,7 @@ import { EssentialCard } from '@/components/EssentialCard';
 import { EnergyFilter } from '@/components/EnergyFilter';
 import { DopamineCounter } from '@/components/DopamineCounter';
 import { CreateTaskModal } from '@/components/CreateTaskModal';
+import { EditTaskModal } from '@/components/EditTaskModal';
 import { CreateEssentialModal } from '@/components/CreateEssentialModal';
 import { CreateChecklistModal } from '@/components/CreateChecklistModal';
 import { HistoryTab } from '@/components/HistoryTab';
@@ -140,6 +141,7 @@ export default function App() {
   const [isDumpThoughtsOpen, setIsDumpThoughtsOpen] = useState(false);
   const [dumpThoughts, setDumpThoughts] = useState('');
   const [, setNotifBump] = useState(0);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   // Unlock audio on first tap — browsers block sound until user gesture.
   useEffect(() => {
@@ -284,6 +286,20 @@ export default function App() {
     setTasks([newTask, ...tasks]);
   };
 
+  const handleSaveTaskEdits = (id: string, title: string, energyLevel: EnergyLevel) => {
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === id
+          ? {
+              ...t,
+              title,
+              energyLevel,
+            }
+          : t,
+      ),
+    );
+  };
+
   const handleCreateEssential = (newEssential: Essential) => {
     setEssentials([newEssential, ...essentials]);
   };
@@ -407,6 +423,13 @@ export default function App() {
           existingTasks={tasks}
         />
 
+        <EditTaskModal
+          isOpen={!!editingTask}
+          task={editingTask}
+          onClose={() => setEditingTask(null)}
+          onSave={handleSaveTaskEdits}
+        />
+
         <CreateEssentialModal
           isOpen={isCreateEssentialModalOpen}
           onClose={() => setIsCreateEssentialModalOpen(false)}
@@ -504,6 +527,7 @@ export default function App() {
                         onDelete={handleDeleteTask}
                         onApplyAI={handleApplyAI}
                         onTimerComplete={handleTimerComplete}
+                        onEdit={setEditingTask}
                       />
                     ))
                   )}

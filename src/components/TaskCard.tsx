@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Check, CalendarClock, Frown, Sparkles, ChevronDown, ChevronUp, Repeat, Trash2 } from 'lucide-react';
+import { Check, CalendarClock, Frown, Sparkles, ChevronDown, ChevronUp, Repeat, Trash2, Pencil } from 'lucide-react';
 import { Task, CATEGORY_COLORS, CATEGORY_BORDER_COLORS, CATEGORY_HEX_COLORS, FUNNY_GIVE_UP_MESSAGES } from '@/types';
 import { VisualTimer } from './VisualTimer';
 import { cn } from '@/lib/utils';
@@ -14,9 +14,10 @@ interface TaskCardProps {
   onDelete: (id: string) => void;
   onApplyAI: (id: string, subSteps: string[], requiredItems: string[]) => void;
   onTimerComplete?: (title: string) => void;
+  onEdit: (task: Task) => void;
 }
 
-export function TaskCard({ task, onComplete, onReschedule, onGiveUp, onDelete, onApplyAI, onTimerComplete }: TaskCardProps) {
+export function TaskCard({ task, onComplete, onReschedule, onGiveUp, onDelete, onApplyAI, onTimerComplete, onEdit }: TaskCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
 
@@ -109,13 +110,22 @@ export function TaskCard({ task, onComplete, onReschedule, onGiveUp, onDelete, o
           </div>
 
           <div className="flex-shrink-0 flex flex-col items-end gap-2">
-            <button
-              onClick={() => onDelete(task.id)}
-              className="text-zinc-700 hover:text-red-500 transition-colors p-1"
-              title="Delete task"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => onEdit(task)}
+                className="text-zinc-600 hover:text-indigo-400 transition-colors p-1"
+                title="Edit task"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => onDelete(task.id)}
+                className="text-zinc-700 hover:text-red-500 transition-colors p-1"
+                title="Delete task"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
             <VisualTimer 
               durationMinutes={task.durationMinutes} 
               hexColor={CATEGORY_HEX_COLORS[task.category]} 
