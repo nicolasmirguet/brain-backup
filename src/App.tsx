@@ -13,7 +13,7 @@ import { CreateEssentialModal } from '@/components/CreateEssentialModal';
 import { CreateChecklistModal } from '@/components/CreateChecklistModal';
 import { HistoryTab } from '@/components/HistoryTab';
 import { DumpThoughtsModal } from '@/components/DumpThoughtsModal';
-import { Plus, LayoutList, CheckSquare, BrainCircuit, Frown, Bell, Activity, CalendarClock, MessageSquare, Moon } from 'lucide-react';
+import { Plus, LayoutList, CheckSquare, BrainCircuit, Frown, Bell, Activity, CalendarClock, MessageSquare, Moon, RotateCcw } from 'lucide-react';
 import { playTimerAlert, playEssentialAlarm, primeAlertAudio } from '@/lib/alerts';
 import {
   notificationsSupported,
@@ -198,6 +198,12 @@ export default function App() {
     setTimeout(() => setTimerAlert(null), 5000);
   };
 
+  const handleResetBrainPoints = () => {
+    const ok = window.confirm('Reset Brain Points back to 0?');
+    if (!ok) return;
+    setBrainPoints(0);
+  };
+
   const handleCompleteTask = (id: string) => {
     setTasks(prevTasks => {
       const task = prevTasks.find(t => t.id === id);
@@ -337,7 +343,17 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center">
-            <DopamineCounter points={brainPoints} />
+            <div className="flex items-center gap-2">
+              <DopamineCounter points={brainPoints} />
+              <button
+                type="button"
+                onClick={handleResetBrainPoints}
+                className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-yellow-300 transition-colors border border-zinc-800"
+                title="Reset Brain Points"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </header>
