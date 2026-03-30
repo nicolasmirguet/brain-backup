@@ -165,35 +165,15 @@ Rules:
     setKeptLocally(true);
   };
 
-  const handleSendEmail = async () => {
+  const handleSendEmail = () => {
     if (!emailAddress.trim()) return;
     const textBody = `Summary:\n${polishedSummary}\n\nItems:\n${parsedItems.map(i => `• ${i.text}`).join('\n')}\n\n---\nOriginal dump:\n${localThoughts}`;
-    try {
-      const res = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: emailAddress.trim(),
-          subject: 'Brain Backup — Thought Dump',
-          text: textBody,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        setEmailSent(true);
-        onPersistEmail?.(emailAddress.trim());
-        setShowEmailInput(false);
-        return;
-      }
-      throw new Error(data.error || 'Send failed');
-    } catch {
-      const subject = encodeURIComponent('Brain Backup — Thought Dump');
-      const body = encodeURIComponent(textBody);
-      window.open(`mailto:${emailAddress.trim()}?subject=${subject}&body=${body}`, '_blank');
-      setEmailSent(true);
-      onPersistEmail?.(emailAddress.trim());
-      setShowEmailInput(false);
-    }
+    const subject = encodeURIComponent('Brain Backup — Thought Dump');
+    const body = encodeURIComponent(textBody);
+    window.open(`mailto:${emailAddress.trim()}?subject=${subject}&body=${body}`, '_blank');
+    setEmailSent(true);
+    onPersistEmail?.(emailAddress.trim());
+    setShowEmailInput(false);
   };
 
   const isDirty = localThoughts !== thoughts;
@@ -462,7 +442,7 @@ Rules:
                         )}
                         {emailSent && (
                           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full flex items-center gap-3 py-4 px-5 rounded-2xl bg-blue-600/20 border border-blue-500/30 text-blue-400 font-black uppercase tracking-wider text-sm">
-                            <Check className="w-5 h-5" /> Copy sent (or mail app opened as fallback)
+                            <Check className="w-5 h-5" /> Open your email app — tap Send there
                           </motion.div>
                         )}
                       </AnimatePresence>

@@ -34,9 +34,10 @@ Add these variables (names must match exactly):
 Source of truth for values:
 - Firebase Console → Project settings → **Your apps** → **Web app** (`</>`) → `firebaseConfig`
 
-Also add (if you use the Netlify functions):
+Also add (if you use the Netlify function):
 - `ANTHROPIC_API_KEY` (Claude proxy `claude.js`)
-- `SENDGRID_API_KEY` and `SENDGRID_FROM_EMAIL` (Brain Dump email `send-email.js`)
+
+Brain Dump **email** uses your device’s default mail app (`mailto`) — no SendGrid needed.
 
 After adding/changing any env vars:
 - Netlify → **Deploys** → **Trigger deploy**
