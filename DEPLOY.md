@@ -34,13 +34,18 @@ Add these variables (names must match exactly):
 Source of truth for values:
 - Firebase Console → Project settings → **Your apps** → **Web app** (`</>`) → `firebaseConfig`
 
-Also add (if you use the Netlify function):
-- `ANTHROPIC_API_KEY`
+Also add (if you use the Netlify functions):
+- `ANTHROPIC_API_KEY` (Claude proxy `claude.js`)
+- `SENDGRID_API_KEY` and `SENDGRID_FROM_EMAIL` (Brain Dump email `send-email.js`)
 
 After adding/changing any env vars:
 - Netlify → **Deploys** → **Trigger deploy**
 
-### 5) Quick verification after deploy
+### 5) Firebase Authentication & Firestore rules (multi-user)
+1. Firebase Console → **Authentication** → enable **Email/Password**.
+2. Firestore → **Rules** — use a pattern like [`firestore.rules.example`](firestore.rules.example): users may read/write only under `users/{theirUid}/**`, and may **read** legacy `userdata/*` once for migration.
+
+### 6) Quick verification after deploy
 - Open the live site
 - In browser console you should see Firebase load logs
 - Essentials and Brain Points behaviors should match the latest code

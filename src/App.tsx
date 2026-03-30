@@ -1,20 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { loadFromFirestore, saveToFirestore } from '@/lib/firebase';
+import { loadFromFirestore, saveToFirestore, auth, migrateLegacyUserData } from '@/lib/firebase';
+import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { motion, AnimatePresence } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
-import { Task, Checklist, EnergyLevel, TaskStatus, Essential } from '@/types';
+import { Task, Checklist, EnergyLevel, Essential } from '@/types';
 import { TaskCard } from '@/components/TaskCard';
 import { ChecklistCard } from '@/components/ChecklistCard';
 import { EssentialCard } from '@/components/EssentialCard';
 import { EnergyFilter } from '@/components/EnergyFilter';
 import { DopamineCounter } from '@/components/DopamineCounter';
 import { CreateTaskModal } from '@/components/CreateTaskModal';
-import { EditTaskModal } from '@/components/EditTaskModal';
+import { EditTaskModal, type EditTaskSavePayload } from '@/components/EditTaskModal';
 import { CreateEssentialModal } from '@/components/CreateEssentialModal';
 import { CreateChecklistModal } from '@/components/CreateChecklistModal';
 import { HistoryTab } from '@/components/HistoryTab';
 import { DumpThoughtsModal } from '@/components/DumpThoughtsModal';
-import { Plus, LayoutList, CheckSquare, BrainCircuit, Frown, Bell, Activity, CalendarClock, MessageSquare, Moon, RotateCcw } from 'lucide-react';
+import { AppTour } from '@/components/AppTour';
+import { AuthScreen } from '@/components/AuthScreen';
+import { Plus, LayoutList, CheckSquare, BrainCircuit, Frown, Bell, Activity, CalendarClock, MessageSquare, Moon, RotateCcw, HelpCircle, LogOut } from 'lucide-react';
 import { playTimerAlert, playEssentialAlarm, primeAlertAudio, type EssentialAlarmTheme } from '@/lib/alerts';
 import {
   notificationsSupported,
@@ -103,6 +106,8 @@ const INITIAL_ESSENTIALS: Essential[] = [
 ];
 
 export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
   const [checklists, setChecklists] = useState<Checklist[]>(INITIAL_CHECKLISTS);
   const [essentials, setEssentials] = useState<Essential[]>(INITIAL_ESSENTIALS);
@@ -111,43 +116,79 @@ export default function App() {
   const loadedRef = useRef(false);
   const essentialAlarmThemeRef = useRef<EssentialAlarmTheme>('alarm');
 
-  // Load all state from Firestore on mount
+  const [energyLevel, setEnergyLevel] = useState<EnergyLevel>('functional');
+  const [activeTab, setActiveTab] = useState<'tasks' | 'launchpads' | 'essentials' | 'history'>('tasks');
+  const [funnyMessage, setFunnyMessage] = useState<string | null>(null);
+  const [timerAlert, setTimerAlert] = useState<string | null>(null);
+  const [spotifyAlarm, setSpotifyAlarm] = useState<{ url: string; title: string } | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCreateEssentialModalOpen, setIsCreateEssentialModalOpen] = useState(false);
+  const [isCreateChecklistModalOpen, setIsCreateChecklistModalOpen] = useState(false);
+  const [isDumpThoughtsOpen, setIsDumpThoughtsOpen] = useState(false);
+  const [dumpThoughts, setDumpThoughts] = useState('');
+  const [brainDumpEmail, setBrainDumpEmail] = useState('');
+  const [, setNotifBump] = useState(0);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [tourOpen, setTourOpen] = useState(false);
+
   useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (u) {
+        await migrateLegacyUserData(u.uid);
+      }
+      setUser(u);
+      setAuthReady(true);
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    loadedRef.current = false;
+    const uid = user.uid;
     Promise.all([
-      loadFromFirestore<Task[]>('bb_tasks', INITIAL_TASKS),
-      loadFromFirestore<Checklist[]>('bb_checklists', INITIAL_CHECKLISTS),
-      loadFromFirestore<Essential[]>('bb_essentials', INITIAL_ESSENTIALS),
-      loadFromFirestore<number>('bb_points', 0),
-      loadFromFirestore<EssentialAlarmTheme>('bb_essential_alarm_theme', 'alarm'),
-    ]).then(([t, c, e, p, theme]) => {
+      loadFromFirestore<Task[]>('bb_tasks', INITIAL_TASKS, uid),
+      loadFromFirestore<Checklist[]>('bb_checklists', INITIAL_CHECKLISTS, uid),
+      loadFromFirestore<Essential[]>('bb_essentials', INITIAL_ESSENTIALS, uid),
+      loadFromFirestore<number>('bb_points', 0, uid),
+      loadFromFirestore<EssentialAlarmTheme>('bb_essential_alarm_theme', 'alarm', uid),
+      loadFromFirestore<string>('bb_brain_dump_email', '', uid),
+      loadFromFirestore<boolean>('bb_tutorial_seen', false, uid),
+    ]).then(([t, c, e, p, theme, email, seenTutorial]) => {
       setTasks(t);
       setChecklists(c);
       setEssentials(e);
       setBrainPoints(p);
       setEssentialAlarmTheme(theme);
       essentialAlarmThemeRef.current = theme;
+      setBrainDumpEmail(typeof email === 'string' ? email : '');
+      if (!seenTutorial) {
+        setTourOpen(true);
+      }
       loadedRef.current = true;
     });
-  }, []);
+  }, [user]);
 
-  // Sync to Firestore when state changes — skip until initial load is done
-  useEffect(() => { if (loadedRef.current) saveToFirestore('bb_tasks', tasks); }, [tasks]);
-  useEffect(() => { if (loadedRef.current) saveToFirestore('bb_checklists', checklists); }, [checklists]);
-  useEffect(() => { if (loadedRef.current) saveToFirestore('bb_essentials', essentials); }, [essentials]);
-  useEffect(() => { if (loadedRef.current) saveToFirestore('bb_points', brainPoints); }, [brainPoints]);
-  useEffect(() => { if (loadedRef.current) saveToFirestore('bb_essential_alarm_theme', essentialAlarmTheme); }, [essentialAlarmTheme]);
-
-  const [energyLevel, setEnergyLevel] = useState<EnergyLevel>('functional');
-  const [activeTab, setActiveTab] = useState<'tasks' | 'launchpads' | 'essentials' | 'history'>('tasks');
-  const [funnyMessage, setFunnyMessage] = useState<string | null>(null);
-  const [timerAlert, setTimerAlert] = useState<string | null>(null);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isCreateEssentialModalOpen, setIsCreateEssentialModalOpen] = useState(false);
-  const [isCreateChecklistModalOpen, setIsCreateChecklistModalOpen] = useState(false);
-  const [isDumpThoughtsOpen, setIsDumpThoughtsOpen] = useState(false);
-  const [dumpThoughts, setDumpThoughts] = useState('');
-  const [, setNotifBump] = useState(0);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  useEffect(() => {
+    if (!loadedRef.current || !user) return;
+    void saveToFirestore('bb_tasks', tasks, user.uid);
+  }, [tasks, user]);
+  useEffect(() => {
+    if (!loadedRef.current || !user) return;
+    void saveToFirestore('bb_checklists', checklists, user.uid);
+  }, [checklists, user]);
+  useEffect(() => {
+    if (!loadedRef.current || !user) return;
+    void saveToFirestore('bb_essentials', essentials, user.uid);
+  }, [essentials, user]);
+  useEffect(() => {
+    if (!loadedRef.current || !user) return;
+    void saveToFirestore('bb_points', brainPoints, user.uid);
+  }, [brainPoints, user]);
+  useEffect(() => {
+    if (!loadedRef.current || !user) return;
+    void saveToFirestore('bb_essential_alarm_theme', essentialAlarmTheme, user.uid);
+  }, [essentialAlarmTheme, user]);
 
   // Unlock audio on first tap — browsers block sound until user gesture.
   useEffect(() => {
@@ -177,6 +218,11 @@ export default function App() {
               : `Essentials Due: ${dueItems.map(e => e.title).join(', ')}!`;
           setTimerAlert(msg);
           setTimeout(() => setTimerAlert(null), 12000);
+          const linked = dueItems.find((e) => e.spotifyUrl?.trim());
+          if (linked?.spotifyUrl?.trim()) {
+            setSpotifyAlarm({ url: linked.spotifyUrl.trim(), title: linked.title });
+            setTimeout(() => setSpotifyAlarm(null), 90_000);
+          }
         });
         return prev.map(e => (ids.has(e.id) ? { ...e, hasNotified: true } : e));
       });
@@ -296,14 +342,20 @@ export default function App() {
     setTasks([newTask, ...tasks]);
   };
 
-  const handleSaveTaskEdits = (id: string, title: string, energyLevel: EnergyLevel) => {
+  const handleSaveTaskEdits = (payload: EditTaskSavePayload) => {
     setTasks(prev =>
       prev.map(t =>
-        t.id === id
+        t.id === payload.id
           ? {
               ...t,
-              title,
-              energyLevel,
+              title: payload.title,
+              energyLevel: payload.energyLevel,
+              category: payload.category,
+              durationMinutes: payload.durationMinutes,
+              scheduleType: payload.scheduleType,
+              looseTimeframe: payload.looseTimeframe,
+              scheduledDate: payload.scheduledDate,
+              recurrence: payload.recurrence,
             }
           : t,
       ),
@@ -322,6 +374,15 @@ export default function App() {
     setEssentials(essentials.filter(e => e.id !== id));
   };
 
+  const handlePersistBrainDumpEmail = (email: string) => {
+    setBrainDumpEmail(email);
+    if (loadedRef.current && user) void saveToFirestore('bb_brain_dump_email', email, user.uid);
+  };
+
+  const handleTourComplete = () => {
+    if (loadedRef.current && user) void saveToFirestore('bb_tutorial_seen', true, user.uid);
+  };
+
   const handleDoneEssential = (id: string) => {
     setEssentials(essentials.map(e => {
       if (e.id === id) {
@@ -336,6 +397,18 @@ export default function App() {
     setBrainPoints(prev => prev + 5); // Small dopamine hit for essentials
   };
 
+  if (!authReady) {
+    return (
+      <div className="min-h-screen bg-black text-zinc-500 flex items-center justify-center font-bold uppercase tracking-widest text-sm">
+        Loading…
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthScreen />;
+  }
+
   return (
     <div className="min-h-screen bg-black text-white font-sans pb-24">
       <header className="pt-12 pb-6 px-6 sticky top-0 bg-black/80 backdrop-blur-md z-40 border-b border-zinc-900">
@@ -348,6 +421,14 @@ export default function App() {
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl sm:text-3xl font-black tracking-tight uppercase">Brain Backup</h1>
                 <div className="flex items-center gap-2">
+                  <button 
+                    type="button"
+                    onClick={() => setTourOpen(true)}
+                    className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors border border-zinc-800"
+                    title="Quick tutorial (~45s)"
+                  >
+                    <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </button>
                   <button 
                     onClick={() => setIsDumpThoughtsOpen(true)}
                     className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors border border-zinc-800"
@@ -379,6 +460,14 @@ export default function App() {
               >
                 <RotateCcw className="w-4 h-4" />
               </button>
+              <button
+                type="button"
+                onClick={() => void signOut(auth)}
+                className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-red-400 transition-colors border border-zinc-800"
+                title="Sign out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </div>
@@ -395,6 +484,35 @@ export default function App() {
             >
               <Bell className="w-6 h-6 animate-bounce" />
               {timerAlert}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {spotifyAlarm && (
+            <motion.div
+              initial={{ opacity: 0, y: 16, x: '-50%' }}
+              animate={{ opacity: 1, y: 0, x: '-50%' }}
+              exit={{ opacity: 0, y: 16, x: '-50%' }}
+              className="fixed bottom-28 left-1/2 z-[55] flex flex-col items-center gap-2 rounded-2xl border border-green-500/40 bg-zinc-900/95 px-5 py-4 shadow-[0_0_30px_rgba(34,197,94,0.25)] max-w-[90vw]"
+            >
+              <p className="text-xs font-black uppercase tracking-widest text-green-400">Essential playlist</p>
+              <p className="text-sm font-bold text-white text-center">{spotifyAlarm.title}</p>
+              <a
+                href={spotifyAlarm.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-xl bg-green-600 px-4 py-2 text-sm font-black uppercase tracking-wider text-white hover:bg-green-500"
+              >
+                Open in Spotify
+              </a>
+              <button
+                type="button"
+                onClick={() => setSpotifyAlarm(null)}
+                className="text-xs text-zinc-500 hover:text-zinc-300 font-bold uppercase"
+              >
+                Dismiss
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -436,6 +554,7 @@ export default function App() {
         <EditTaskModal
           isOpen={!!editingTask}
           task={editingTask}
+          existingTasks={tasks}
           onClose={() => setEditingTask(null)}
           onSave={handleSaveTaskEdits}
         />
@@ -452,12 +571,16 @@ export default function App() {
           onCreate={handleCreateChecklist}
         />
 
+        <AppTour isOpen={tourOpen} onClose={() => setTourOpen(false)} onComplete={handleTourComplete} />
+
         <DumpThoughtsModal
           isOpen={isDumpThoughtsOpen}
           onClose={() => setIsDumpThoughtsOpen(false)}
           thoughts={dumpThoughts}
           onChange={setDumpThoughts}
           onCreateTasks={(newTasks) => setTasks(prev => [...newTasks, ...prev])}
+          savedEmail={brainDumpEmail}
+          onPersistEmail={handlePersistBrainDumpEmail}
         />
 
         <div className="flex gap-2 mb-8 overflow-x-auto pb-2 hide-scrollbar">

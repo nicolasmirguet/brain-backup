@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Check, Plus, Trash2 } from 'lucide-react';
+import { Check, Plus, Trash2, Sparkles } from 'lucide-react';
+import { ChecklistItemSuggestModal } from './ChecklistItemSuggestModal';
 import { Checklist, ChecklistItem } from '@/types';
 import { cn } from '@/lib/utils';
 import { v4 as uuidv4 } from 'uuid';
@@ -13,6 +14,7 @@ interface ChecklistCardProps {
 
 export function ChecklistCard({ checklist, onUpdate, onDelete }: ChecklistCardProps) {
   const [newItemText, setNewItemText] = useState('');
+  const [suggestOpen, setSuggestOpen] = useState(false);
 
   const toggleItem = (id: string) => {
     const updatedItems = checklist.items.map(item => 
@@ -43,6 +45,13 @@ export function ChecklistCard({ checklist, onUpdate, onDelete }: ChecklistCardPr
   const allChecked = checklist.items.length > 0 && checklist.items.every(i => i.isChecked);
 
   return (
+    <>
+    <ChecklistItemSuggestModal
+      isOpen={suggestOpen}
+      checklist={checklist}
+      onClose={() => setSuggestOpen(false)}
+      onApply={onUpdate}
+    />
     <div className={cn(
       "bg-zinc-900 rounded-xl p-5 border-2 transition-colors",
       allChecked ? "border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.2)]" : "border-zinc-800"
@@ -93,6 +102,16 @@ export function ChecklistCard({ checklist, onUpdate, onDelete }: ChecklistCardPr
         ))}
       </div>
 
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          onClick={() => setSuggestOpen(true)}
+          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-indigo-500/40 bg-indigo-600/15 px-3 py-2 text-sm font-black uppercase tracking-wider text-indigo-300 hover:bg-indigo-600/25"
+        >
+          <Sparkles className="h-4 w-4" /> AI suggest items
+        </button>
+      </div>
+
       <form onSubmit={addItem} className="flex gap-2">
         <input
           type="text"
@@ -110,5 +129,6 @@ export function ChecklistCard({ checklist, onUpdate, onDelete }: ChecklistCardPr
         </button>
       </form>
     </div>
+    </>
   );
 }

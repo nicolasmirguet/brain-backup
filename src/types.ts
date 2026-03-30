@@ -46,6 +46,8 @@ export interface Essential {
   intervalMinutes: number; // 20 to 300
   nextDue: number; // timestamp
   hasNotified: boolean;
+  /** Optional Spotify track/playlist URL shown when this essential is due */
+  spotifyUrl?: string;
 }
 
 export const CATEGORY_COLORS: Record<TaskCategory, string> = {

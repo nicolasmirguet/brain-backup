@@ -1,0 +1,19 @@
+// Example rules: copy to Firebase Console → Firestore → Rules
+// After enabling Authentication, tighten so each user only reads/writes their subtree.
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Per-user app data (Brain Backup)
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Legacy flat docs (optional one-time migration read).
+    // App copies these into users/{uid}/userdata on first login.
+    match /userdata/{document} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+  }
+}

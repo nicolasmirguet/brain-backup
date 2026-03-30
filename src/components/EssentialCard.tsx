@@ -102,6 +102,22 @@ export function EssentialCard({ essential, onUpdate, onDelete, onDone }: Essenti
         </div>
       </div>
 
+      <div className="mb-4">
+        <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Spotify when due (optional)</label>
+        <input
+          type="url"
+          value={essential.spotifyUrl ?? ''}
+          onChange={(e) =>
+            onUpdate({
+              ...essential,
+              spotifyUrl: e.target.value.trim() || undefined,
+            })
+          }
+          placeholder="https://open.spotify.com/..."
+          className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
+        />
+      </div>
+
       <button
         onClick={() => onDone(essential.id)}
         className={`w-full py-3 px-4 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
