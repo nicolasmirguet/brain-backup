@@ -95,7 +95,7 @@ const INITIAL_ESSENTIALS: Essential[] = [
     intervalMinutes: 90,
     nextDue: Date.now() + 90 * 60000,
     hasNotified: false,
-    isActive: true,
+    isActive: false,
     silent: false,
     reminderCount: 0,
   },
@@ -105,7 +105,7 @@ const INITIAL_ESSENTIALS: Essential[] = [
     intervalMinutes: 60,
     nextDue: Date.now() + 60 * 60000,
     hasNotified: false,
-    isActive: true,
+    isActive: false,
     silent: false,
     reminderCount: 0,
   }
