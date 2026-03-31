@@ -43,10 +43,10 @@ export interface Checklist {
 export interface Essential {
   id: string;
   title: string;
-  intervalMinutes: number; // 20 to 300
+  intervalMinutes: number; // 5 to 300
   nextDue: number; // timestamp
   hasNotified: boolean;
-  /** Optional Spotify track/playlist URL shown when this essential is due */
+  /** Optional external media URL (e.g. YouTube) shown when this essential is due */
   spotifyUrl?: string;
 }
 

@@ -13,13 +13,13 @@ interface CreateEssentialModalProps {
 export function CreateEssentialModal({ isOpen, onClose, onCreate }: CreateEssentialModalProps) {
   const [title, setTitle] = useState('');
   const [intervalMinutes, setIntervalMinutes] = useState(90);
-  const [spotifyUrl, setSpotifyUrl] = useState('');
+  const [mediaUrl, setMediaUrl] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
-    const url = spotifyUrl.trim();
+    const url = mediaUrl.trim();
     const newEssential: Essential = {
       id: uuidv4(),
       title: title.trim(),
@@ -32,7 +32,7 @@ export function CreateEssentialModal({ isOpen, onClose, onCreate }: CreateEssent
     onCreate(newEssential);
     setTitle('');
     setIntervalMinutes(90);
-    setSpotifyUrl('');
+    setMediaUrl('');
     onClose();
   };
 
@@ -81,17 +81,17 @@ export function CreateEssentialModal({ isOpen, onClose, onCreate }: CreateEssent
 
               <div>
                 <label className="block text-sm font-bold text-zinc-400 uppercase tracking-widest mb-2">
-                  Spotify link (optional)
+                  YouTube link (optional)
                 </label>
                 <input
                   type="url"
-                  value={spotifyUrl}
-                  onChange={(e) => setSpotifyUrl(e.target.value)}
-                  placeholder="https://open.spotify.com/..."
+                  value={mediaUrl}
+                  onChange={(e) => setMediaUrl(e.target.value)}
+                  placeholder="https://www.youtube.com/watch?v=..."
                   className="w-full bg-zinc-800 border-2 border-zinc-700 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 text-sm"
                 />
                 <p className="text-[10px] text-zinc-500 mt-1 uppercase font-bold tracking-wider">
-                  Shown when this essential is due — open your vibe in Spotify
+                  Shown when this essential is due
                 </p>
               </div>
 

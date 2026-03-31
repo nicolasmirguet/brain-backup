@@ -51,7 +51,7 @@ const STEPS: TourStep[] = [
   },
   {
     title: 'Essentials',
-    body: 'Repeating needs (water, stretch, meds rhythm…) with timers. Open this tab to tune reminders, alarm sound, and optional Spotify link per card.',
+    body: 'Repeating needs (water, stretch, meds rhythm…) with timers. Open this tab to tune reminders, alarm sound, and optional YouTube link per card.',
     target: 'tab-essentials',
     tab: 'essentials',
   },

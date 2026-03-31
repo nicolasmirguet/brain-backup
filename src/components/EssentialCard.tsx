@@ -115,7 +115,7 @@ export function EssentialCard({ essential, onUpdate, onDelete, onDone }: Essenti
       </div>
 
       <div className="mb-4">
-        <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Spotify when due (optional)</label>
+        <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">YouTube when due (optional)</label>
         <input
           type="url"
           value={essential.spotifyUrl ?? ''}
@@ -125,7 +125,7 @@ export function EssentialCard({ essential, onUpdate, onDelete, onDone }: Essenti
               spotifyUrl: e.target.value.trim() || undefined,
             })
           }
-          placeholder="https://open.spotify.com/..."
+          placeholder="https://www.youtube.com/watch?v=..."
           className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
         />
       </div>

@@ -17,7 +17,7 @@ import { HistoryTab } from '@/components/HistoryTab';
 import { DumpThoughtsModal } from '@/components/DumpThoughtsModal';
 import { AppTour } from '@/components/AppTour';
 import { AuthScreen } from '@/components/AuthScreen';
-import { Plus, LayoutList, CheckSquare, BrainCircuit, Frown, Bell, Activity, CalendarClock, MessageSquare, Moon, RotateCcw, HelpCircle, LogOut, Brain } from 'lucide-react';
+import { Plus, LayoutList, CheckSquare, BrainCircuit, Frown, Bell, Activity, CalendarClock, MessageSquare, Moon, RotateCcw, HelpCircle, LogOut, Brain, MoreHorizontal } from 'lucide-react';
 import { playTimerAlert, playEssentialAlarm, primeAlertAudio, type EssentialAlarmTheme } from '@/lib/alerts';
 import {
   notificationsSupported,
@@ -128,6 +128,7 @@ export default function App() {
   const [essentialAlarmTheme, setEssentialAlarmTheme] = useState<EssentialAlarmTheme>('alarm');
   const loadedRef = useRef(false);
   const essentialAlarmThemeRef = useRef<EssentialAlarmTheme>('alarm');
+  const autoOpenedDueLinkRef = useRef<Set<string>>(new Set());
 
   const [energyLevel, setEnergyLevel] = useState<EnergyLevel>('functional');
   const [activeTab, setActiveTab] = useState<'tasks' | 'launchpads' | 'essentials' | 'history'>('tasks');
@@ -144,6 +145,7 @@ export default function App() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
   const [tourPromptOpen, setTourPromptOpen] = useState(false);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -235,7 +237,15 @@ export default function App() {
           const linked = dueItems.find((e) => normalizeExternalUrl(e.spotifyUrl));
           if (linked) {
             const openUrl = normalizeExternalUrl(linked.spotifyUrl);
-            if (openUrl) setSpotifyAlarm({ url: openUrl, title: linked.title });
+            if (openUrl) {
+              setSpotifyAlarm({ url: openUrl, title: linked.title });
+              const openKey = `${linked.id}:${linked.nextDue}`;
+              if (!autoOpenedDueLinkRef.current.has(openKey)) {
+                autoOpenedDueLinkRef.current.add(openKey);
+                // Best effort: browsers may block auto-open without recent user interaction.
+                window.open(openUrl, '_blank', 'noopener,noreferrer');
+              }
+            }
             setTimeout(() => setSpotifyAlarm(null), 90_000);
           }
         });
@@ -437,6 +447,13 @@ export default function App() {
     setBrainPoints(prev => prev + 5); // Small dopamine hit for essentials
   };
 
+  useEffect(() => {
+    if (!headerMenuOpen) return;
+    const close = () => setHeaderMenuOpen(false);
+    window.addEventListener('pointerdown', close);
+    return () => window.removeEventListener('pointerdown', close);
+  }, [headerMenuOpen]);
+
   if (!authReady) {
     return (
       <div className="min-h-screen bg-black text-zinc-500 flex items-center justify-center font-bold uppercase tracking-widest text-sm">
@@ -452,66 +469,96 @@ export default function App() {
   return (
     <div className="min-h-screen bg-black text-white font-sans pb-24">
       <header className="pt-12 pb-6 px-6 sticky top-0 bg-black/80 backdrop-blur-md z-40 border-b border-zinc-900">
-        <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 p-2 rounded-xl hidden sm:block">
+        <div className="max-w-3xl mx-auto flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0" data-tour="header-title">
+            <div className="bg-indigo-600 p-2 rounded-xl hidden sm:block flex-shrink-0">
               <BrainCircuit className="w-8 h-8 text-white" />
             </div>
-            <div data-tour="header-title">
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl sm:text-3xl font-black tracking-tight uppercase">Brain Backup</h1>
-                <div className="flex items-center gap-2">
-                  <button 
-                    type="button"
-                    data-tour="tour-help"
-                    onClick={() => setTourOpen(true)}
-                    className="h-9 w-9 sm:h-10 sm:w-10 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors border border-zinc-800 flex items-center justify-center"
-                    title="Quick tutorial (~45s)"
-                  >
-                    <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => void playTimerAlert()}
-                    className="h-9 w-9 sm:h-10 sm:w-10 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors border border-zinc-800 flex items-center justify-center"
-                    title="Test Timer Alert"
-                  >
-                    <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
-                  </button>
-                  <button
-                    type="button"
-                    data-tour="brain-dump"
-                    onClick={() => setIsDumpThoughtsOpen(true)}
-                    className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl bg-indigo-600/20 border border-indigo-500/45 text-indigo-200 hover:bg-indigo-600/30 hover:text-white transition-colors shadow-[0_0_14px_rgba(99,102,241,0.3)] flex items-center gap-2"
-                    title="Brain Dump"
-                  >
-                    <Brain className="w-4 h-4 sm:w-5 sm:h-5" />
-                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider">Brain Dump</span>
-                  </button>
-                </div>
-              </div>
+            <div className="min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight uppercase leading-tight">Brain Backup</h1>
               <p className="text-zinc-500 text-xs sm:text-sm font-bold tracking-widest uppercase mt-1">ADHD Assistant</p>
             </div>
           </div>
-          <div className="flex items-center">
+          <div className="flex items-center flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              data-tour="tour-help"
+              onClick={() => setTourOpen(true)}
+              className="h-10 w-10 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors border border-zinc-800 flex items-center justify-center"
+              title="Quick tutorial (~45s)"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => void playTimerAlert()}
+              className="h-10 w-10 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors border border-zinc-800 flex items-center justify-center"
+              title="Test Timer Alert"
+            >
+              <Bell className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              data-tour="brain-dump"
+              onClick={() => setIsDumpThoughtsOpen(true)}
+              className="h-10 px-3.5 rounded-xl bg-indigo-600/20 border border-indigo-500/45 text-indigo-200 hover:bg-indigo-600/30 hover:text-white transition-colors shadow-[0_0_14px_rgba(99,102,241,0.3)] flex items-center gap-2"
+              title="Brain Dump"
+            >
+              <Brain className="w-5 h-5" />
+              <span className="text-xs font-black uppercase tracking-wider">Brain Dump</span>
+            </button>
             <div className="flex items-center gap-2" data-tour="brain-points">
               <DopamineCounter points={brainPoints} />
-              <button
-                type="button"
-                onClick={handleResetBrainPoints}
-                className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-yellow-300 transition-colors border border-zinc-800"
-                title="Reset Brain Points"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => void signOut(auth)}
-                className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-red-400 transition-colors border border-zinc-800"
-                title="Sign out"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setHeaderMenuOpen(v => !v);
+                  }}
+                  className="h-10 w-10 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-zinc-300 transition-colors border border-zinc-800 flex items-center justify-center"
+                  title="More actions"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </button>
+                {headerMenuOpen && (
+                  <div
+                    className="absolute right-0 mt-2 w-48 rounded-xl border border-zinc-800 bg-zinc-950/95 shadow-2xl p-1 z-50"
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void playTimerAlert();
+                        setHeaderMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-zinc-300 hover:bg-zinc-800 flex items-center gap-2"
+                    >
+                      <Bell className="w-4 h-4" /> Test timer alert
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleResetBrainPoints();
+                        setHeaderMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-zinc-300 hover:bg-zinc-800 flex items-center gap-2"
+                    >
+                      <RotateCcw className="w-4 h-4" /> Reset brain points
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHeaderMenuOpen(false);
+                        void signOut(auth);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-red-300 hover:bg-zinc-800 flex items-center gap-2"
+                    >
+                      <LogOut className="w-4 h-4" /> Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -540,7 +587,7 @@ export default function App() {
               exit={{ opacity: 0, y: 16, x: '-50%' }}
               className="fixed bottom-28 left-1/2 z-[55] flex flex-col items-center gap-2 rounded-2xl border border-green-500/40 bg-zinc-900/95 px-5 py-4 shadow-[0_0_30px_rgba(34,197,94,0.25)] max-w-[90vw]"
             >
-              <p className="text-xs font-black uppercase tracking-widest text-green-400">Essential playlist</p>
+              <p className="text-xs font-black uppercase tracking-widest text-green-400">Essential link</p>
               <p className="text-sm font-bold text-white text-center">{spotifyAlarm.title}</p>
               <a
                 href={spotifyAlarm.url}
@@ -548,7 +595,7 @@ export default function App() {
                 rel="noopener noreferrer"
                 className="rounded-xl bg-green-600 px-4 py-2 text-sm font-black uppercase tracking-wider text-white hover:bg-green-500"
               >
-                Open in Spotify
+                Open Link
               </a>
               <button
                 type="button"
@@ -845,9 +892,6 @@ export default function App() {
                     </button>
                   </div>
                 </div>
-                <p className="mt-3 text-xs leading-relaxed text-zinc-500">
-                  Note: we can’t include copyrighted themes (like the Star Wars melody), but the “Sci‑fi” option is a similar vibe without copying a song.
-                </p>
               </div>
               {notificationsSupported() ? (
                 <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4 text-sm text-zinc-300">
