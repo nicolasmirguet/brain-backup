@@ -42,6 +42,8 @@ export function DumpThoughtsModal({
   const [emailAddress, setEmailAddress] = useState('');
   const [showEmailInput, setShowEmailInput] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [emailCopied, setEmailCopied] = useState(false);
   const [tasksSaved, setTasksSaved] = useState(false);
   const [keptLocally, setKeptLocally] = useState(false);
   const [error, setError] = useState('');
@@ -56,6 +58,8 @@ export function DumpThoughtsModal({
       setEmailAddress(savedEmail || '');
       setShowEmailInput(false);
       setEmailSent(false);
+      setEmailError('');
+      setEmailCopied(false);
       setTasksSaved(false);
       setKeptLocally(false);
       setError('');
@@ -155,15 +159,52 @@ Rules:
     setKeptLocally(true);
   };
 
+  const buildEmailPayload = () => {
+    const trimmed = emailAddress.trim();
+    const subjectText = 'Brain Backup - Thought Dump';
+    const bodyText = `Summary:\n${polishedSummary}\n\nItems:\n${parsedItems.map(i => `• ${i.text}`).join('\n')}\n\n---\nOriginal dump:\n${localThoughts}`;
+    return { trimmed, subjectText, bodyText };
+  };
+
   const handleSendEmail = () => {
-    if (!emailAddress.trim()) return;
-    const textBody = `Summary:\n${polishedSummary}\n\nItems:\n${parsedItems.map(i => `• ${i.text}`).join('\n')}\n\n---\nOriginal dump:\n${localThoughts}`;
-    const subject = encodeURIComponent('Brain Backup — Thought Dump');
-    const body = encodeURIComponent(textBody);
-    window.open(`mailto:${emailAddress.trim()}?subject=${subject}&body=${body}`, '_blank');
+    const { trimmed, subjectText, bodyText } = buildEmailPayload();
+    if (!trimmed) return;
+    setEmailError('');
+    const subject = encodeURIComponent(subjectText);
+    const body = encodeURIComponent(bodyText);
+    const mailtoHref = `mailto:${trimmed}?subject=${subject}&body=${body}`;
+    // If no default mail app is configured, browser may still open a blank tab.
+    // We keep this option for users who do have a desktop mail client.
+    window.location.href = mailtoHref;
     setEmailSent(true);
-    onPersistEmail?.(emailAddress.trim());
+    onPersistEmail?.(trimmed);
     setShowEmailInput(false);
+  };
+
+  const handleSendGmail = () => {
+    const { trimmed, subjectText, bodyText } = buildEmailPayload();
+    if (!trimmed) return;
+    setEmailError('');
+    const gmailHref = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(trimmed)}&su=${encodeURIComponent(subjectText)}&body=${encodeURIComponent(bodyText)}`;
+    try {
+      window.open(gmailHref, '_blank', 'noopener,noreferrer');
+      setEmailSent(true);
+      onPersistEmail?.(trimmed);
+      setShowEmailInput(false);
+    } catch {
+      setEmailError('Could not open Gmail compose. Use copy option below.');
+    }
+  };
+
+  const handleCopyEmailText = async () => {
+    const { subjectText, bodyText } = buildEmailPayload();
+    try {
+      await navigator.clipboard.writeText(`Subject: ${subjectText}\n\n${bodyText}`);
+      setEmailCopied(true);
+      setTimeout(() => setEmailCopied(false), 1800);
+    } catch {
+      setEmailError('Copy failed. You can still use Gmail compose.');
+    }
   };
 
   const isDirty = localThoughts !== thoughts;
@@ -425,9 +466,18 @@ Rules:
                             <div className="flex gap-2">
                               <button onClick={() => setShowEmailInput(false)} className="flex-1 py-3 rounded-xl bg-zinc-800 text-zinc-400 font-black uppercase text-sm hover:bg-zinc-700 transition-colors">Cancel</button>
                               <button onClick={handleSendEmail} disabled={!emailAddress.trim()} className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white font-black uppercase text-sm flex items-center justify-center gap-2 transition-colors">
-                                <Mail className="w-4 h-4" /> Send
+                                <Mail className="w-4 h-4" /> Mail App
                               </button>
                             </div>
+                            <div className="flex gap-2">
+                              <button onClick={handleSendGmail} disabled={!emailAddress.trim()} className="flex-1 py-3 rounded-xl bg-zinc-900 border border-zinc-700 hover:bg-zinc-800 disabled:opacity-40 text-white font-black uppercase text-sm transition-colors">
+                                Open Gmail
+                              </button>
+                              <button onClick={handleCopyEmailText} className="flex-1 py-3 rounded-xl bg-zinc-900 border border-zinc-700 hover:bg-zinc-800 text-white font-black uppercase text-sm transition-colors">
+                                {emailCopied ? 'Copied' : 'Copy Text'}
+                              </button>
+                            </div>
+                            {emailError && <p className="text-red-400 text-xs font-bold">{emailError}</p>}
                           </motion.div>
                         )}
                         {emailSent && (
