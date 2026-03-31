@@ -14,8 +14,9 @@ type TourStep = {
 
 const STEPS: TourStep[] = [
   {
-    title: 'Welcome',
-    body: 'This quick tour points at the real buttons in Brain Backup — an ADHD-friendly place to offload memory before you forget tasks, habits, and worries.',
+    title: 'What this app is for',
+    body: 'Brain Backup is your external brain for ADHD: dump thoughts fast, turn them into doable tasks, track essentials like meds/water, and finish the day with a gentle wrap-up.',
+    target: 'header-title',
     tab: 'tasks',
   },
   {
@@ -189,9 +190,8 @@ export function AppTour({ isOpen, onClose, onComplete, activeTab, navigateToTab 
         >
           {hasTarget ? (
             <>
-              <div className="fixed inset-0 z-[99] bg-black/70 backdrop-blur-sm" />
               <div
-                className="fixed z-[100] rounded-2xl ring-2 ring-indigo-400 ring-offset-2 ring-offset-transparent shadow-[0_0_0_9999px_rgba(0,0,0,0.78)] pointer-events-none transition-all duration-300 ease-out"
+                className="fixed z-[100] rounded-2xl ring-2 ring-indigo-400 ring-offset-2 ring-offset-transparent shadow-[0_0_0_9999px_rgba(0,0,0,0.35)] pointer-events-none transition-all duration-300 ease-out"
                 style={{
                   top: rect!.top,
                   left: rect!.left,
@@ -222,7 +222,7 @@ export function AppTour({ isOpen, onClose, onComplete, activeTab, navigateToTab 
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 pointer-events-auto"
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 pointer-events-auto"
             >
               <motion.div
                 initial={{ scale: 0.96, y: 10 }}
