@@ -1,6 +1,4 @@
 // Bundled into gemini + stream-ai entrypoints (underscore: not a top-level Netlify function on most setups).
-
-import { requireSecureRequest } from './_security.js';
 const DEFAULT_MODEL = 'gemini-2.0-flash';
 
 function normalizeBody(body) {
@@ -39,9 +37,6 @@ function normalizeBody(body) {
  * @returns {Promise<Response>}
  */
 export async function handleGeminiProxy(req) {
-  const guardResponse = await requireSecureRequest(req);
-  if (guardResponse) return guardResponse;
-
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return new Response(JSON.stringify({ error: 'GEMINI_API_KEY not configured' }), {

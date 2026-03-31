@@ -1,14 +1,8 @@
-// Legacy Claude proxy — the app uses netlify/functions/gemini.js + GEMINI_API_KEY.
 // Brain Backup - Claude Haiku Proxy v1
-import { requireSecureRequest } from './_security.js';
-
 export default async (req, context) => {
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
-
-  const guardResponse = await requireSecureRequest(req);
-  if (guardResponse) return guardResponse;
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
