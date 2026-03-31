@@ -101,15 +101,15 @@ export function CreateEssentialModal({ isOpen, onClose, onCreate }: CreateEssent
                 </label>
                 <input 
                   type="range" 
-                  min="20" 
+                  min="5" 
                   max="300" 
-                  step="10"
+                  step="5"
                   value={intervalMinutes}
                   onChange={(e) => setIntervalMinutes(parseInt(e.target.value, 10))}
                   className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                 />
                 <div className="flex justify-between text-[10px] font-bold text-zinc-600 uppercase mt-2">
-                  <span>High (20m)</span>
+                  <span>High (5m)</span>
                   <span>Low (5h)</span>
                 </div>
               </div>

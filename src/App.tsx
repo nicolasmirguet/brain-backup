@@ -17,7 +17,7 @@ import { HistoryTab } from '@/components/HistoryTab';
 import { DumpThoughtsModal } from '@/components/DumpThoughtsModal';
 import { AppTour } from '@/components/AppTour';
 import { AuthScreen } from '@/components/AuthScreen';
-import { Plus, LayoutList, CheckSquare, BrainCircuit, Frown, Bell, Activity, CalendarClock, MessageSquare, Moon, RotateCcw, HelpCircle, LogOut } from 'lucide-react';
+import { Plus, LayoutList, CheckSquare, BrainCircuit, Frown, Bell, Activity, CalendarClock, MessageSquare, Moon, RotateCcw, HelpCircle, LogOut, Brain } from 'lucide-react';
 import { playTimerAlert, playEssentialAlarm, primeAlertAudio, type EssentialAlarmTheme } from '@/lib/alerts';
 import {
   notificationsSupported,
@@ -104,6 +104,19 @@ const INITIAL_ESSENTIALS: Essential[] = [
     hasNotified: false
   }
 ];
+
+function normalizeExternalUrl(raw?: string): string | undefined {
+  const trimmed = raw?.trim();
+  if (!trimmed) return undefined;
+  const withProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const parsed = new URL(withProtocol);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
+    return parsed.toString();
+  } catch {
+    return undefined;
+  }
+}
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -219,9 +232,10 @@ export default function App() {
               : `Essentials Due: ${dueItems.map(e => e.title).join(', ')}!`;
           setTimerAlert(msg);
           setTimeout(() => setTimerAlert(null), 12000);
-          const linked = dueItems.find((e) => e.spotifyUrl?.trim());
-          if (linked?.spotifyUrl?.trim()) {
-            setSpotifyAlarm({ url: linked.spotifyUrl.trim(), title: linked.title });
+          const linked = dueItems.find((e) => normalizeExternalUrl(e.spotifyUrl));
+          if (linked) {
+            const openUrl = normalizeExternalUrl(linked.spotifyUrl);
+            if (openUrl) setSpotifyAlarm({ url: openUrl, title: linked.title });
             setTimeout(() => setSpotifyAlarm(null), 90_000);
           }
         });
@@ -364,11 +378,26 @@ export default function App() {
   };
 
   const handleCreateEssential = (newEssential: Essential) => {
-    setEssentials([newEssential, ...essentials]);
+    setEssentials([
+      {
+        ...newEssential,
+        spotifyUrl: normalizeExternalUrl(newEssential.spotifyUrl),
+      },
+      ...essentials,
+    ]);
   };
 
   const handleUpdateEssential = (updated: Essential) => {
-    setEssentials(essentials.map(e => e.id === updated.id ? updated : e));
+    setEssentials(
+      essentials.map(e =>
+        e.id === updated.id
+          ? {
+              ...updated,
+              spotifyUrl: normalizeExternalUrl(updated.spotifyUrl),
+            }
+          : e,
+      ),
+    );
   };
 
   const handleDeleteEssential = (id: string) => {
@@ -441,14 +470,15 @@ export default function App() {
                   >
                     <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
-                  <button 
+                  <button
                     type="button"
                     data-tour="brain-dump"
                     onClick={() => setIsDumpThoughtsOpen(true)}
-                    className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors border border-zinc-800"
-                    title="Dump Thoughts"
+                    className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-xl bg-indigo-600/20 border border-indigo-500/45 text-indigo-200 hover:bg-indigo-600/30 hover:text-white transition-colors shadow-[0_0_14px_rgba(99,102,241,0.3)] flex items-center gap-2"
+                    title="Brain Dump"
                   >
-                    <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <Brain className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider">Brain Dump</span>
                   </button>
                   <button 
                     type="button"

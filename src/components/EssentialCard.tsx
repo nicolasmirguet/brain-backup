@@ -12,6 +12,18 @@ interface EssentialCardProps {
 
 export function EssentialCard({ essential, onUpdate, onDelete, onDone }: EssentialCardProps) {
   const [timeLeft, setTimeLeft] = useState(Math.max(0, essential.nextDue - Date.now()));
+  const openUrl = (() => {
+    const raw = essential.spotifyUrl?.trim();
+    if (!raw) return undefined;
+    const withProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(raw) ? raw : `https://${raw}`;
+    try {
+      const parsed = new URL(withProtocol);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
+      return parsed.toString();
+    } catch {
+      return undefined;
+    }
+  })();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -89,15 +101,15 @@ export function EssentialCard({ essential, onUpdate, onDelete, onDone }: Essenti
         </div>
         <input 
           type="range" 
-          min="20" 
+          min="5" 
           max="300" 
-          step="10"
+          step="5"
           value={essential.intervalMinutes}
           onChange={handleSliderChange}
           className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
         />
         <div className="flex justify-between text-[10px] font-bold text-zinc-600 uppercase mt-1">
-          <span>High (20m)</span>
+          <span>High (5m)</span>
           <span>Low (5h)</span>
         </div>
       </div>
@@ -128,6 +140,17 @@ export function EssentialCard({ essential, onUpdate, onDelete, onDone }: Essenti
       >
         <Check className="w-5 h-5" /> {isDue ? "Do It Now!" : "Did It Early"}
       </button>
+
+      {isDue && openUrl && (
+        <a
+          href={openUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 w-full py-3 px-4 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white transition-all shadow-[0_0_18px_rgba(34,197,94,0.35)]"
+        >
+          Open Link
+        </a>
+      )}
     </motion.div>
   );
 }
