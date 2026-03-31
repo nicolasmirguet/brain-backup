@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, ChevronRight, ChevronLeft } from 'lucide-react';
 
@@ -175,27 +175,6 @@ export function AppTour({ isOpen, onClose, onComplete, activeTab, navigateToTab 
 
   const hasTarget = Boolean(step.target && rect && rect.width > 0 && rect.height > 0);
 
-  const tooltipStyle = useMemo(() => {
-    if (!hasTarget || !rect) return undefined;
-    const gap = 14;
-    const estH = 270;
-    const style: React.CSSProperties = {
-      left: '50%',
-      transform: 'translateX(-50%)',
-      width: 'min(92vw, 22rem)',
-    };
-    // Prefer below target; otherwise above; then clamp inside viewport.
-    const belowTop = rect.top + rect.height + gap;
-    const aboveTop = rect.top - estH - gap;
-    let top = belowTop;
-    if (belowTop + estH > window.innerHeight && aboveTop >= gap) {
-      top = aboveTop;
-    }
-    top = Math.max(gap, Math.min(top, window.innerHeight - estH - gap));
-    style.top = top;
-    return style;
-  }, [hasTarget, rect]);
-
   return (
     <AnimatePresence>
       {isOpen && (
@@ -210,6 +189,7 @@ export function AppTour({ isOpen, onClose, onComplete, activeTab, navigateToTab 
         >
           {hasTarget ? (
             <>
+              <div className="fixed inset-0 z-[99] bg-black/70 backdrop-blur-sm" />
               <div
                 className="fixed z-[100] rounded-2xl ring-2 ring-indigo-400 ring-offset-2 ring-offset-transparent shadow-[0_0_0_9999px_rgba(0,0,0,0.78)] pointer-events-none transition-all duration-300 ease-out"
                 style={{
@@ -222,8 +202,7 @@ export function AppTour({ isOpen, onClose, onComplete, activeTab, navigateToTab 
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="fixed z-[101] rounded-2xl border border-zinc-700 bg-zinc-950/95 p-5 shadow-2xl backdrop-blur-md pointer-events-auto"
-                style={tooltipStyle}
+                className="fixed z-[101] w-[min(92vw,22rem)] rounded-2xl border border-zinc-700 bg-zinc-950/95 p-5 shadow-2xl backdrop-blur-md pointer-events-auto left-1/2 -translate-x-1/2 bottom-6"
               >
                 <TourCardContent
                   step={step}
