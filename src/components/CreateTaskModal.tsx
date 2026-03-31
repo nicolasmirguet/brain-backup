@@ -15,7 +15,7 @@ interface CreateTaskModalProps {
 export function CreateTaskModal({ isOpen, onClose, onCreate, existingTasks }: CreateTaskModalProps) {
   const [title, setTitle] = useState('');
   const [duplicateError, setDuplicateError] = useState(false);
-  const [category, setCategory] = useState<TaskCategory>('other');
+  const [category, setCategory] = useState<TaskCategory>('urgent');
   const [energyLevel, setEnergyLevel] = useState<EnergyLevel>('functional');
   const [durationMinutes, setDurationMinutes] = useState<number>(15);
   const [scheduleType, setScheduleType] = useState<ScheduleType>('loose');
@@ -263,6 +263,8 @@ export function CreateTaskModal({ isOpen, onClose, onCreate, existingTasks }: Cr
                   onChange={(e) => setCategory(e.target.value as TaskCategory)}
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors appearance-none"
                 >
+                  <option value="urgent">Urgent</option>
+                  <option value="work">Work</option>
                   <option value="health">Health</option>
                   <option value="exercise">Exercise</option>
                   <option value="chores">Chores</option>

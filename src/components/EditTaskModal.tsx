@@ -38,7 +38,7 @@ export function EditTaskModal({ isOpen, task, existingTasks, onClose, onSave }: 
   const [title, setTitle] = useState('');
   const [duplicateError, setDuplicateError] = useState(false);
   const [energyLevel, setEnergyLevel] = useState<EnergyLevel>('functional');
-  const [category, setCategory] = useState<TaskCategory>('other');
+  const [category, setCategory] = useState<TaskCategory>('urgent');
   const [durationMinutes, setDurationMinutes] = useState<number>(15);
   const [scheduleType, setScheduleType] = useState<ScheduleType>('loose');
   const [looseTimeframe, setLooseTimeframe] = useState<LooseTimeframe>('today');
@@ -296,6 +296,8 @@ export function EditTaskModal({ isOpen, task, existingTasks, onClose, onSave }: 
                     onChange={(e) => setCategory(e.target.value as TaskCategory)}
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none appearance-none"
                   >
+                    <option value="urgent">Urgent</option>
+                    <option value="work">Work</option>
                     <option value="health">Health</option>
                     <option value="exercise">Exercise</option>
                     <option value="chores">Chores</option>

@@ -1,4 +1,4 @@
-export type TaskCategory = 'health' | 'exercise' | 'chores' | 'other';
+export type TaskCategory = 'urgent' | 'work' | 'health' | 'exercise' | 'chores' | 'other';
 export type TaskCycle = 'daily' | 'weekly' | 'monthly' | 'none';
 export type EnergyLevel = 'brain dead' | 'functional' | 'superhero';
 export type TaskStatus = 'pending' | 'done' | 'rescheduled' | 'given_up';
@@ -51,24 +51,30 @@ export interface Essential {
 }
 
 export const CATEGORY_COLORS: Record<TaskCategory, string> = {
-  health: 'bg-[#39FF14] text-black', // Neon Green
-  exercise: 'bg-[#00FFFF] text-black', // Electric Blue
-  chores: 'bg-[#FF4500] text-white', // Sunset Orange
-  other: 'bg-zinc-800 text-white',
+  urgent: 'bg-[#EF4444] text-white', // Red
+  work: 'bg-[#3B82F6] text-white', // Blue
+  health: 'bg-[#22C55E] text-black', // Green
+  exercise: 'bg-[#F97316] text-black', // Orange
+  chores: 'bg-[#A855F7] text-white', // Purple
+  other: 'bg-[#14B8A6] text-black', // Teal
 };
 
 export const CATEGORY_HEX_COLORS: Record<TaskCategory, string> = {
-  health: '#39FF14',
-  exercise: '#00FFFF',
-  chores: '#FF4500',
-  other: '#52525b', // zinc-600
+  urgent: '#EF4444',
+  work: '#3B82F6',
+  health: '#22C55E',
+  exercise: '#F97316',
+  chores: '#A855F7',
+  other: '#14B8A6',
 };
 
 export const CATEGORY_BORDER_COLORS: Record<TaskCategory, string> = {
-  health: 'border-[#39FF14]',
-  exercise: 'border-[#00FFFF]',
-  chores: 'border-[#FF4500]',
-  other: 'border-zinc-700',
+  urgent: 'border-[#EF4444]',
+  work: 'border-[#3B82F6]',
+  health: 'border-[#22C55E]',
+  exercise: 'border-[#F97316]',
+  chores: 'border-[#A855F7]',
+  other: 'border-[#14B8A6]',
 };
 
 export const ENERGY_LEVELS: EnergyLevel[] = ['brain dead', 'functional', 'superhero'];

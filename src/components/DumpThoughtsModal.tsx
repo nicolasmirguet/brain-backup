@@ -142,7 +142,7 @@ Rules:
     const newTasks: Task[] = selectedItems.map(item => ({
       id: uuidv4(),
       title: item.text,
-      category: 'other' as TaskCategory,
+      category: 'urgent' as TaskCategory,
       cycle: 'none' as const,
       energyLevel: 'functional' as EnergyLevel,
       durationMinutes: 30,
