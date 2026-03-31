@@ -47,6 +47,8 @@ export interface Essential {
   nextDue: number; // timestamp
   hasNotified: boolean;
   /** Optional external media URL (e.g. YouTube) shown when this essential is due */
+  mediaUrl?: string;
+  /** Legacy field kept for backward compatibility with already-saved data */
   spotifyUrl?: string;
   /** When false, timer is effectively paused */
   isActive?: boolean;

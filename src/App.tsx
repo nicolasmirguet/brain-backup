@@ -140,7 +140,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'tasks' | 'launchpads' | 'essentials' | 'history'>('tasks');
   const [funnyMessage, setFunnyMessage] = useState<string | null>(null);
   const [timerAlert, setTimerAlert] = useState<string | null>(null);
-  const [spotifyAlarm, setSpotifyAlarm] = useState<{ url: string; title: string } | null>(null);
+  const [mediaAlarm, setMediaAlarm] = useState<{ url: string; title: string } | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isCreateEssentialModalOpen, setIsCreateEssentialModalOpen] = useState(false);
   const [isCreateChecklistModalOpen, setIsCreateChecklistModalOpen] = useState(false);
@@ -177,10 +177,13 @@ export default function App() {
       loadFromFirestore<string>('bb_brain_dump_email', '', uid),
       loadFromFirestore<boolean>('bb_tutorial_seen', false, uid),
     ]).then(([t, c, e, p, theme, email, seenTutorial]) => {
+      const now = Date.now();
       const hydratedEssentials = (e ?? INITIAL_ESSENTIALS).map((ess) => ({
         ...ess,
         isActive: false,
         reminderCount: 0,
+        hasNotified: false,
+        nextDue: now + (ess.intervalMinutes ?? 60) * 60_000,
       }));
       setTasks(t);
       setChecklists(c);
@@ -246,11 +249,11 @@ export default function App() {
                   : `Essentials Due: ${audibleItems.map(e => e.title).join(', ')}!`;
               setTimerAlert(msg);
               setTimeout(() => setTimerAlert(null), 12000);
-              const linked = audibleItems.find((e) => normalizeExternalUrl(e.spotifyUrl));
+              const linked = audibleItems.find((e) => normalizeExternalUrl(e.mediaUrl ?? e.spotifyUrl));
               if (linked) {
-                const openUrl = normalizeExternalUrl(linked.spotifyUrl);
+                const openUrl = normalizeExternalUrl(linked.mediaUrl ?? linked.spotifyUrl);
                 if (openUrl) {
-                  setSpotifyAlarm({ url: openUrl, title: linked.title });
+                  setMediaAlarm({ url: openUrl, title: linked.title });
                   const openKey = `${linked.id}:${linked.nextDue}`;
                   if (!autoOpenedDueLinkRef.current.has(openKey)) {
                     autoOpenedDueLinkRef.current.add(openKey);
@@ -258,7 +261,7 @@ export default function App() {
                     window.open(openUrl, '_blank', 'noopener,noreferrer');
                   }
                 }
-                setTimeout(() => setSpotifyAlarm(null), 90_000);
+                setTimeout(() => setMediaAlarm(null), 90_000);
               }
             });
           }
@@ -424,7 +427,8 @@ export default function App() {
     setEssentials([
       {
         ...newEssential,
-        spotifyUrl: normalizeExternalUrl(newEssential.spotifyUrl),
+        mediaUrl: normalizeExternalUrl(newEssential.mediaUrl ?? newEssential.spotifyUrl),
+        spotifyUrl: undefined,
       },
       ...essentials,
     ]);
@@ -436,7 +440,8 @@ export default function App() {
         e.id === updated.id
           ? {
               ...updated,
-              spotifyUrl: normalizeExternalUrl(updated.spotifyUrl),
+              mediaUrl: normalizeExternalUrl(updated.mediaUrl ?? updated.spotifyUrl),
+              spotifyUrl: undefined,
             }
           : e,
       ),
@@ -614,7 +619,7 @@ export default function App() {
         </AnimatePresence>
 
         <AnimatePresence>
-          {spotifyAlarm && (
+          {mediaAlarm && (
             <motion.div
               initial={{ opacity: 0, y: 16, x: '-50%' }}
               animate={{ opacity: 1, y: 0, x: '-50%' }}
@@ -622,9 +627,9 @@ export default function App() {
               className="fixed bottom-28 left-1/2 z-[55] flex flex-col items-center gap-2 rounded-2xl border border-green-500/40 bg-zinc-900/95 px-5 py-4 shadow-[0_0_30px_rgba(34,197,94,0.25)] max-w-[90vw]"
             >
               <p className="text-xs font-black uppercase tracking-widest text-green-400">Essential link</p>
-              <p className="text-sm font-bold text-white text-center">{spotifyAlarm.title}</p>
+              <p className="text-sm font-bold text-white text-center">{mediaAlarm.title}</p>
               <a
-                href={spotifyAlarm.url}
+                href={mediaAlarm.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-xl bg-green-600 px-4 py-2 text-sm font-black uppercase tracking-wider text-white hover:bg-green-500"
@@ -633,7 +638,7 @@ export default function App() {
               </a>
               <button
                 type="button"
-                onClick={() => setSpotifyAlarm(null)}
+                onClick={() => setMediaAlarm(null)}
                 className="text-xs text-zinc-500 hover:text-zinc-300 font-bold uppercase"
               >
                 Dismiss

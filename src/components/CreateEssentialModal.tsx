@@ -26,7 +26,10 @@ export function CreateEssentialModal({ isOpen, onClose, onCreate }: CreateEssent
       intervalMinutes,
       nextDue: Date.now() + intervalMinutes * 60000,
       hasNotified: false,
-      ...(url ? { spotifyUrl: url } : {}),
+      isActive: false,
+      silent: false,
+      reminderCount: 0,
+      ...(url ? { mediaUrl: url } : {}),
     };
 
     onCreate(newEssential);

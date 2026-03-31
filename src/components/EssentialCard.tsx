@@ -15,7 +15,7 @@ export function EssentialCard({ essential, onUpdate, onDelete, onDone }: Essenti
   const isActive = essential.isActive !== false;
   const isSilent = !!essential.silent;
   const openUrl = (() => {
-    const raw = essential.spotifyUrl?.trim();
+    const raw = (essential.mediaUrl ?? essential.spotifyUrl)?.trim();
     if (!raw) return undefined;
     const withProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(raw) ? raw : `https://${raw}`;
     try {
@@ -141,11 +141,12 @@ export function EssentialCard({ essential, onUpdate, onDelete, onDone }: Essenti
         <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">YouTube when due (optional)</label>
         <input
           type="url"
-          value={essential.spotifyUrl ?? ''}
+          value={essential.mediaUrl ?? essential.spotifyUrl ?? ''}
           onChange={(e) =>
             onUpdate({
               ...essential,
-              spotifyUrl: e.target.value.trim() || undefined,
+              mediaUrl: e.target.value.trim() || undefined,
+              spotifyUrl: undefined,
             })
           }
           placeholder="https://www.youtube.com/watch?v=..."
