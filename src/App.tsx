@@ -465,10 +465,18 @@ export default function App() {
                     type="button"
                     data-tour="tour-help"
                     onClick={() => setTourOpen(true)}
-                    className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors border border-zinc-800"
+                    className="h-9 w-9 sm:h-10 sm:w-10 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors border border-zinc-800 flex items-center justify-center"
                     title="Quick tutorial (~45s)"
                   >
                     <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => void playTimerAlert()}
+                    className="h-9 w-9 sm:h-10 sm:w-10 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors border border-zinc-800 flex items-center justify-center"
+                    title="Test Timer Alert"
+                  >
+                    <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                   <button
                     type="button"
@@ -479,14 +487,6 @@ export default function App() {
                   >
                     <Brain className="w-4 h-4 sm:w-5 sm:h-5" />
                     <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider">Brain Dump</span>
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => void playTimerAlert()}
-                    className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors border border-zinc-800"
-                    title="Test Timer Alert"
-                  >
-                    <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                 </div>
               </div>

@@ -11,7 +11,9 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-console.log('[Firebase] projectId:', import.meta.env.VITE_FIREBASE_PROJECT_ID);
+if (import.meta.env.DEV) {
+  console.log('[Firebase] projectId:', import.meta.env.VITE_FIREBASE_PROJECT_ID);
+}
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
@@ -49,7 +51,7 @@ export async function migrateLegacyUserData(uid: string): Promise<void> {
       }
     }
     await setDoc(metaRef, { legacyImported: true }, { merge: true });
-    console.log('[Firebase] legacy migration done for', uid);
+    if (import.meta.env.DEV) console.log('[Firebase] legacy migration done for', uid);
   } catch (e) {
     console.warn('[Firebase] migration failed:', e);
   }
@@ -58,7 +60,7 @@ export async function migrateLegacyUserData(uid: string): Promise<void> {
 export async function loadFromFirestore<T>(key: string, fallback: T, uid: string): Promise<T> {
   try {
     const snap = await getDoc(userDataDoc(key, uid));
-    console.log('[Firebase] load', key, snap.exists());
+    if (import.meta.env.DEV) console.log('[Firebase] load', key, snap.exists());
     if (snap.exists()) {
       return (snap.data()?.value as T) ?? fallback;
     }
@@ -72,7 +74,7 @@ export async function saveToFirestore(key: string, value: unknown, uid: string):
   try {
     const clean = JSON.parse(JSON.stringify(value));
     await setDoc(userDataDoc(key, uid), { value: clean });
-    console.log('[Firebase] saved', key);
+    if (import.meta.env.DEV) console.log('[Firebase] saved', key);
   } catch (e) {
     console.warn('[Firebase] save failed:', key, e);
   }
