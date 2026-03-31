@@ -74,8 +74,16 @@ Return exactly ${count} NEW items not duplicating existing. Helpful for ADHD / r
       if (items.length === 0) throw new Error('empty');
       setSuggestions(items.map((text) => ({ text, selected: true })));
       setStep('pick');
-    } catch {
-      setError('AI could not suggest items. Try again or shorten your context.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Surface actionable errors (auth / rate-limit / provider errors), otherwise keep a friendly fallback.
+      if (
+        /auth|token|sign in|unauthorized|rate limit|429|model|overloaded|timeout|API key|configured/i.test(msg)
+      ) {
+        setError(msg);
+      } else {
+        setError('AI could not suggest items. Try again or shorten your context.');
+      }
     } finally {
       setLoading(false);
     }
