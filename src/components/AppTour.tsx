@@ -130,7 +130,9 @@ export function AppTour({ isOpen, onClose, onComplete, activeTab, navigateToTab 
       setRect(null);
       return;
     }
-    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    // Avoid smooth scrolling here: it can cause us to measure mid-animation and place
+    // the tooltip off-screen (looks like a "blackout").
+    el.scrollIntoView({ block: 'center', behavior: 'auto' });
     const r = el.getBoundingClientRect();
     const width = r.width + PAD * 2;
     const height = r.height + PAD * 2;
@@ -182,13 +184,15 @@ export function AppTour({ isOpen, onClose, onComplete, activeTab, navigateToTab 
       transform: 'translateX(-50%)',
       width: 'min(92vw, 22rem)',
     };
-    if (rect.top + rect.height + gap + estH <= window.innerHeight) {
-      style.top = rect.top + rect.height + gap;
-    } else if (rect.top - gap - estH >= 8) {
-      style.bottom = window.innerHeight - rect.top + gap;
-    } else {
-      style.top = gap;
+    // Prefer below target; otherwise above; then clamp inside viewport.
+    const belowTop = rect.top + rect.height + gap;
+    const aboveTop = rect.top - estH - gap;
+    let top = belowTop;
+    if (belowTop + estH > window.innerHeight && aboveTop >= gap) {
+      top = aboveTop;
     }
+    top = Math.max(gap, Math.min(top, window.innerHeight - estH - gap));
+    style.top = top;
     return style;
   }, [hasTarget, rect]);
 

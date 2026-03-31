@@ -130,6 +130,7 @@ export default function App() {
   const [, setNotifBump] = useState(0);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
+  const [tourPromptOpen, setTourPromptOpen] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -163,7 +164,7 @@ export default function App() {
       essentialAlarmThemeRef.current = theme;
       setBrainDumpEmail(typeof email === 'string' ? email : '');
       if (!seenTutorial) {
-        setTourOpen(true);
+        setTourPromptOpen(true);
       }
       loadedRef.current = true;
     });
@@ -383,6 +384,16 @@ export default function App() {
     if (loadedRef.current && user) void saveToFirestore('bb_tutorial_seen', true, user.uid);
   };
 
+  const handleStartTour = () => {
+    setTourPromptOpen(false);
+    setTourOpen(true);
+  };
+
+  const handleSkipTour = () => {
+    setTourPromptOpen(false);
+    if (loadedRef.current && user) void saveToFirestore('bb_tutorial_seen', true, user.uid);
+  };
+
   const handleDoneEssential = (id: string) => {
     setEssentials(essentials.map(e => {
       if (e.id === id) {
@@ -581,6 +592,46 @@ export default function App() {
           activeTab={activeTab}
           navigateToTab={setActiveTab}
         />
+
+        <AnimatePresence>
+          {tourPromptOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            >
+              <motion.div
+                initial={{ y: 12, opacity: 0, scale: 0.98 }}
+                animate={{ y: 0, opacity: 1, scale: 1 }}
+                exit={{ y: 8, opacity: 0, scale: 0.98 }}
+                className="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-950 p-5 shadow-2xl"
+              >
+                <p className="text-xs font-black uppercase tracking-widest text-indigo-400 mb-2">Quick setup</p>
+                <h3 className="text-lg font-black uppercase tracking-tight text-white">Start the 45s app tour?</h3>
+                <p className="mt-2 text-sm text-zinc-400">
+                  It points at real buttons so you can learn the app fast.
+                </p>
+                <div className="mt-5 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSkipTour}
+                    className="flex-1 rounded-xl border border-zinc-700 bg-zinc-900 py-2.5 text-sm font-black uppercase tracking-wider text-zinc-300 hover:bg-zinc-800"
+                  >
+                    No thanks
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStartTour}
+                    className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-black uppercase tracking-wider text-white hover:bg-indigo-500"
+                  >
+                    Yes, start
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <DumpThoughtsModal
           isOpen={isDumpThoughtsOpen}
