@@ -177,9 +177,14 @@ export default function App() {
       loadFromFirestore<string>('bb_brain_dump_email', '', uid),
       loadFromFirestore<boolean>('bb_tutorial_seen', false, uid),
     ]).then(([t, c, e, p, theme, email, seenTutorial]) => {
+      const hydratedEssentials = (e ?? INITIAL_ESSENTIALS).map((ess) => ({
+        ...ess,
+        isActive: false,
+        reminderCount: 0,
+      }));
       setTasks(t);
       setChecklists(c);
-      setEssentials(e);
+      setEssentials(hydratedEssentials);
       setBrainPoints(p);
       setEssentialAlarmTheme(theme);
       essentialAlarmThemeRef.current = theme;
