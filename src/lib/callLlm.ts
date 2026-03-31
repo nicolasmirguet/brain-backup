@@ -1,6 +1,8 @@
 /** Calls the Netlify serverless proxy — API key never touches the browser. */
 export async function callLlm(system: string, prompt: string): Promise<string> {
-  const res = await fetch('/api/gemini', {
+  // Currently wired to Claude Haiku via /api/claude. To switch back to Gemini,
+  // change this path to /api/gemini and ensure GEMINI_API_KEY is set on Netlify.
+  const res = await fetch('/api/claude', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ system, prompt }),
