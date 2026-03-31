@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Loader2, Sparkles } from 'lucide-react';
 import { Task } from '@/types';
+import { callLlm } from '@/lib/callLlm';
 
 interface AIAdvisorModalProps {
   isOpen: boolean;
@@ -19,22 +20,15 @@ export function AIAdvisorModal({ isOpen, onClose, task, onApply }: AIAdvisorModa
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/claude', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system: 'You are a supportive ADHD coach. You MUST respond with ONLY a valid JSON object — no markdown, no backticks, no explanation, nothing else. Just the raw JSON.',
-          prompt: `Break down this task into 4-6 funny and encouraging 5-minute sub-steps, and list any physical items needed: "${task.title}"
+      const text = await callLlm(
+        'You are a supportive ADHD coach. You MUST respond with ONLY a valid JSON object — no markdown, no backticks, no explanation, nothing else. Just the raw JSON.',
+        `Break down this task into 4-6 funny and encouraging 5-minute sub-steps, and list any physical items needed: "${task.title}"
 
 Respond with ONLY this JSON, nothing else:
-{"subSteps":["step 1","step 2"],"requiredItems":["item 1"]}`
-        })
-      });
+{"subSteps":["step 1","step 2"],"requiredItems":["item 1"]}`,
+      );
 
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-
-      const jsonMatch = data.text.match(/\{[\s\S]*\}/);
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error('No JSON in response');
       const parsed = JSON.parse(jsonMatch[0]);
       setSuggestion(parsed);

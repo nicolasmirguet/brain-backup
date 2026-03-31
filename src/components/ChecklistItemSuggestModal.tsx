@@ -3,17 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Sparkles, Loader2, Check } from 'lucide-react';
 import { Checklist, ChecklistItem } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
-
-async function callClaude(system: string, prompt: string): Promise<string> {
-  const res = await fetch('/api/claude', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ system, prompt }),
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data.text;
-}
+import { callLlm } from '@/lib/callLlm';
 
 const COUNTS = [5, 10, 15, 20] as const;
 
@@ -68,7 +58,7 @@ User context — what this list is for and the aim:
 ${context.trim()}
 
 Return exactly ${count} NEW items not duplicating existing. Helpful for ADHD / routine / leaving the house.`;
-      const raw = await callClaude(system, prompt);
+      const raw = await callLlm(system, prompt);
       let parsed: { items?: string[] };
       try {
         parsed = JSON.parse(raw);

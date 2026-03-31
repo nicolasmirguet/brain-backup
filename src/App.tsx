@@ -417,12 +417,13 @@ export default function App() {
             <div className="bg-indigo-600 p-2 rounded-xl hidden sm:block">
               <BrainCircuit className="w-8 h-8 text-white" />
             </div>
-            <div>
+            <div data-tour="header-title">
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl sm:text-3xl font-black tracking-tight uppercase">Brain Backup</h1>
                 <div className="flex items-center gap-2">
                   <button 
                     type="button"
+                    data-tour="tour-help"
                     onClick={() => setTourOpen(true)}
                     className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors border border-zinc-800"
                     title="Quick tutorial (~45s)"
@@ -430,6 +431,8 @@ export default function App() {
                     <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                   <button 
+                    type="button"
+                    data-tour="brain-dump"
                     onClick={() => setIsDumpThoughtsOpen(true)}
                     className="p-2 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors border border-zinc-800"
                     title="Dump Thoughts"
@@ -450,7 +453,7 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" data-tour="brain-points">
               <DopamineCounter points={brainPoints} />
               <button
                 type="button"
@@ -571,7 +574,13 @@ export default function App() {
           onCreate={handleCreateChecklist}
         />
 
-        <AppTour isOpen={tourOpen} onClose={() => setTourOpen(false)} onComplete={handleTourComplete} />
+        <AppTour
+          isOpen={tourOpen}
+          onClose={() => setTourOpen(false)}
+          onComplete={handleTourComplete}
+          activeTab={activeTab}
+          navigateToTab={setActiveTab}
+        />
 
         <DumpThoughtsModal
           isOpen={isDumpThoughtsOpen}
@@ -583,8 +592,10 @@ export default function App() {
           onPersistEmail={handlePersistBrainDumpEmail}
         />
 
-        <div className="flex gap-2 mb-8 overflow-x-auto pb-2 hide-scrollbar">
+        <div className="flex gap-2 mb-8 overflow-x-auto pb-2 hide-scrollbar" data-tour="main-tabs">
           <button
+            type="button"
+            data-tour="tab-tasks"
             onClick={() => setActiveTab('tasks')}
             className={`flex-1 min-w-[120px] py-4 px-4 rounded-2xl font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
               activeTab === 'tasks' 
@@ -595,6 +606,8 @@ export default function App() {
             <LayoutList className="w-5 h-5" /> Tasks
           </button>
           <button
+            type="button"
+            data-tour="tab-launchpads"
             onClick={() => setActiveTab('launchpads')}
             className={`flex-1 min-w-[140px] py-4 px-4 rounded-2xl font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
               activeTab === 'launchpads' 
@@ -605,6 +618,8 @@ export default function App() {
             <CheckSquare className="w-5 h-5" /> Launchpads
           </button>
           <button
+            type="button"
+            data-tour="tab-essentials"
             onClick={() => setActiveTab('essentials')}
             className={`flex-1 min-w-[140px] py-4 px-4 rounded-2xl font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
               activeTab === 'essentials' 
@@ -626,10 +641,12 @@ export default function App() {
               transition={{ duration: 0.2 }}
             >
               <div className="flex items-end justify-between mb-6 gap-4">
-                <div className="flex-1">
+                <div className="flex-1" data-tour="energy-filter">
                   <EnergyFilter currentLevel={energyLevel} onChange={setEnergyLevel} />
                 </div>
                 <button
+                  type="button"
+                  data-tour="add-task"
                   onClick={() => setIsCreateModalOpen(true)}
                   className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 rounded-xl transition-colors shadow-[0_0_15px_rgba(79,70,229,0.3)] flex items-center justify-center gap-2 h-[54px]"
                 >
@@ -674,6 +691,7 @@ export default function App() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
+              data-tour="launchpads-section"
             >
               <div className="flex items-center justify-between mb-6">
                 <div className="text-zinc-400 font-bold uppercase tracking-widest text-sm">
@@ -719,7 +737,7 @@ export default function App() {
                   <span className="font-black uppercase tracking-wider text-sm whitespace-nowrap">Add Essential</span>
                 </button>
               </div>
-              <div className="mb-4 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4">
+              <div className="mb-4 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4" data-tour="essentials-alarm">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-black uppercase tracking-wider text-zinc-200">Alarm sound</p>
@@ -810,6 +828,8 @@ export default function App() {
       <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black via-black/90 to-transparent z-40 pointer-events-none">
         <div className="max-w-3xl mx-auto pointer-events-auto">
           <button
+            type="button"
+            data-tour="history-bar"
             onClick={() => setActiveTab('history')}
             className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-2xl ${
               activeTab === 'history'

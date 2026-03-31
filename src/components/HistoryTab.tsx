@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Task } from '@/types';
 import { Sparkles, CheckCircle2, XCircle, Plus, Loader2, CalendarClock, Target, CheckSquare, Square, Mail } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
+import { callLlm } from '@/lib/callLlm';
 
 interface HistoryTabProps {
   tasks: Task[];
@@ -42,49 +43,21 @@ export function HistoryTab({ tasks, dumpThoughts, onAddTasks }: HistoryTabProps)
         ? `For tomorrow's suggested tasks, focus recommendations on: ${selectedFocuses.join(', ')}.` 
         : '';
 
-      const prompt = `I am an ADHD user. Here is my day:
-Completed tasks: ${completedTasks.map(t => t.title).join(', ') || 'None'}
-Tasks I gave up on: ${givenUpTasks.map(t => t.title).join(', ') || 'None'}
-${focusText}
-Dumped thoughts from today: ${dumpThoughts || 'None'}
-
-Please provide a daily wrap-up.
-
-Respond with ONLY valid JSON, no markdown, no extra text:
-{
-  "celebration": "short encouraging message about their wins",
-  "recommendation": "1-2 gentle recommendations",
-  "tidiedThoughts": "dumped thoughts organized into bullet points, or empty string if none",
-  "suggestedTasks": [
-    {
-      "title": "task name",
-      "category": "health|exercise|chores|other",
-      "durationMinutes": 15,
-      "energyLevel": "brain dead|functional|superhero"
-    }
-  ]
-}`;
-
-      const res = await fetch('/api/claude', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system: 'You are a supportive ADHD coach. You MUST respond with ONLY a valid JSON object — no markdown, no backticks, no explanation, nothing else. Just the raw JSON.',
-          prompt: `I am an ADHD user. Here is my day:
+      const userPrompt = `I am an ADHD user. Here is my day:
 Completed tasks: ${completedTasks.map(t => t.title).join(', ') || 'None'}
 Tasks I gave up on: ${givenUpTasks.map(t => t.title).join(', ') || 'None'}
 ${focusText}
 Dumped thoughts from today: ${dumpThoughts || 'None'}
 
 Respond with ONLY this JSON structure, nothing else:
-{"celebration":"short encouraging message","recommendation":"1-2 gentle recommendations","tidiedThoughts":"organized thoughts or empty string","suggestedTasks":[{"title":"task name","category":"health","durationMinutes":15,"energyLevel":"functional"}]}`
-        })
-      });
+{"celebration":"short encouraging message","recommendation":"1-2 gentle recommendations","tidiedThoughts":"organized thoughts or empty string","suggestedTasks":[{"title":"task name","category":"health","durationMinutes":15,"energyLevel":"functional"}]}`;
 
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const text = await callLlm(
+        'You are a supportive ADHD coach. You MUST respond with ONLY a valid JSON object — no markdown, no backticks, no explanation, nothing else. Just the raw JSON.',
+        userPrompt,
+      );
 
-      const jsonMatch = data.text.match(/\{[\s\S]*\}/);
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error('No JSON found in response');
       const parsed = JSON.parse(jsonMatch[0]);
       setWrapUp(parsed);

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, MessageSquare, Sparkles, Plus, Mail, BookOpen, Loader2, ChevronRight, Check, Save } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Task, TaskCategory, EnergyLevel } from '../types';
+import { callLlm } from '@/lib/callLlm';
 
 interface DumpThoughtsModalProps {
   isOpen: boolean;
@@ -22,17 +23,6 @@ interface ParsedItem {
   text: string;
   isTask: boolean;
   selected: boolean;
-}
-
-async function callClaude(system: string, prompt: string): Promise<string> {
-  const res = await fetch('/api/claude', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ system, prompt }),
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data.text;
 }
 
 export function DumpThoughtsModal({
@@ -109,7 +99,7 @@ Rules:
 - Max 10 words per item
 - Return 3 to 15 items`;
 
-      const raw = await callClaude(system, `Here is my brain dump:\n\n${localThoughts}`);
+      const raw = await callLlm(system, `Here is my brain dump:\n\n${localThoughts}`);
 
       let parsed;
       try {

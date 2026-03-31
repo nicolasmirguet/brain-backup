@@ -34,8 +34,9 @@ Add these variables (names must match exactly):
 Source of truth for values:
 - Firebase Console → Project settings → **Your apps** → **Web app** (`</>`) → `firebaseConfig`
 
-Also add (if you use the Netlify function):
-- `ANTHROPIC_API_KEY` (Claude proxy `claude.js`)
+Also add (for Brain Dump / AI advisor / History wrap-up):
+- `GEMINI_API_KEY` — from [Google AI Studio](https://aistudio.google.com/apikey) (server-only; never `V_*` prefix)
+- Optional: `GEMINI_MODEL` — defaults to `gemini-2.0-flash` if unset (see comment in `netlify/functions/gemini.js`)
 
 Brain Dump **email** uses your device’s default mail app (`mailto`) — no SendGrid needed.
 

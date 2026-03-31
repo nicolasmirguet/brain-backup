@@ -9,9 +9,41 @@
 [functions]
   node_bundler = "esbuild"
 
+[dev]
+  command = "npm run dev"
+  targetPort = 3000
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
+  status = 200
+
+# netlify dev used to rewrite these to /index.html (SPA fallback), which breaks Vite.
+# Identity rewrites let the dev server see the real path. Only needed for local dev;
+# production still serves static files from dist and applies rules in order.
+[[redirects]]
+  from = "/@vite/*"
+  to = "/@vite/:splat"
+  status = 200
+[[redirects]]
+  from = "/@fs/*"
+  to = "/@fs/:splat"
+  status = 200
+[[redirects]]
+  from = "/@id/*"
+  to = "/@id/:splat"
+  status = 200
+[[redirects]]
+  from = "/@react-refresh"
+  to = "/@react-refresh"
+  status = 200
+[[redirects]]
+  from = "/src/*"
+  to = "/src/:splat"
+  status = 200
+[[redirects]]
+  from = "/node_modules/*"
+  to = "/node_modules/:splat"
   status = 200
 
 [[redirects]]
