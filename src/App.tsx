@@ -94,14 +94,20 @@ const INITIAL_ESSENTIALS: Essential[] = [
     title: 'Drink Water',
     intervalMinutes: 90,
     nextDue: Date.now() + 90 * 60000,
-    hasNotified: false
+    hasNotified: false,
+    isActive: true,
+    silent: false,
+    reminderCount: 0,
   },
   {
     id: uuidv4(),
     title: 'Stretch / Stand',
     intervalMinutes: 60,
     nextDue: Date.now() + 60 * 60000,
-    hasNotified: false
+    hasNotified: false,
+    isActive: true,
+    silent: false,
+    reminderCount: 0,
   }
 ];
 
@@ -222,34 +228,56 @@ export default function App() {
       if (!loadedRef.current) return;
       setEssentials(prev => {
         const now = Date.now();
-        const dueItems = prev.filter(e => now >= e.nextDue && !e.hasNotified);
-        if (dueItems.length === 0) return prev;
-        const ids = new Set(dueItems.map(e => e.id));
-        queueMicrotask(() => {
-          void playEssentialAlarm(essentialAlarmThemeRef.current);
-          showEssentialDueNotification(dueItems.map(e => e.title));
-          const msg =
-            dueItems.length === 1
-              ? `Essential Due: ${dueItems[0].title}!`
-              : `Essentials Due: ${dueItems.map(e => e.title).join(', ')}!`;
-          setTimerAlert(msg);
-          setTimeout(() => setTimerAlert(null), 12000);
-          const linked = dueItems.find((e) => normalizeExternalUrl(e.spotifyUrl));
-          if (linked) {
-            const openUrl = normalizeExternalUrl(linked.spotifyUrl);
-            if (openUrl) {
-              setSpotifyAlarm({ url: openUrl, title: linked.title });
-              const openKey = `${linked.id}:${linked.nextDue}`;
-              if (!autoOpenedDueLinkRef.current.has(openKey)) {
-                autoOpenedDueLinkRef.current.add(openKey);
-                // Best effort: browsers may block auto-open without recent user interaction.
-                window.open(openUrl, '_blank', 'noopener,noreferrer');
+        const dueItems = prev.filter(e => (e.isActive !== false) && now >= e.nextDue);
+        if (dueItems.length > 0) {
+          const audibleItems = dueItems.filter(e => !e.silent);
+          if (audibleItems.length > 0) {
+            queueMicrotask(() => {
+              void playEssentialAlarm(essentialAlarmThemeRef.current);
+              showEssentialDueNotification(audibleItems.map(e => e.title));
+              const msg =
+                audibleItems.length === 1
+                  ? `Essential Due: ${audibleItems[0].title}!`
+                  : `Essentials Due: ${audibleItems.map(e => e.title).join(', ')}!`;
+              setTimerAlert(msg);
+              setTimeout(() => setTimerAlert(null), 12000);
+              const linked = audibleItems.find((e) => normalizeExternalUrl(e.spotifyUrl));
+              if (linked) {
+                const openUrl = normalizeExternalUrl(linked.spotifyUrl);
+                if (openUrl) {
+                  setSpotifyAlarm({ url: openUrl, title: linked.title });
+                  const openKey = `${linked.id}:${linked.nextDue}`;
+                  if (!autoOpenedDueLinkRef.current.has(openKey)) {
+                    autoOpenedDueLinkRef.current.add(openKey);
+                    // Best effort: browsers may block auto-open without recent user interaction.
+                    window.open(openUrl, '_blank', 'noopener,noreferrer');
+                  }
+                }
+                setTimeout(() => setSpotifyAlarm(null), 90_000);
               }
-            }
-            setTimeout(() => setSpotifyAlarm(null), 90_000);
+            });
           }
+        }
+        return prev.map(e => {
+          if (e.isActive === false) return e;
+          if (now < e.nextDue) return e;
+          const reminders = e.reminderCount ?? 0;
+          if (reminders < 3) {
+            return {
+              ...e,
+              nextDue: now + 5 * 60_000,
+              reminderCount: reminders + 1,
+              hasNotified: true,
+            };
+          }
+          // After 3 reminders, restart full interval
+          return {
+            ...e,
+            nextDue: now + e.intervalMinutes * 60_000,
+            reminderCount: 0,
+            hasNotified: false,
+          };
         });
-        return prev.map(e => (ids.has(e.id) ? { ...e, hasNotified: true } : e));
       });
     };
 
@@ -439,7 +467,8 @@ export default function App() {
         return {
           ...e,
           nextDue: Date.now() + e.intervalMinutes * 60000,
-          hasNotified: false
+          hasNotified: false,
+          reminderCount: 0,
         };
       }
       return e;

@@ -48,6 +48,12 @@ export interface Essential {
   hasNotified: boolean;
   /** Optional external media URL (e.g. YouTube) shown when this essential is due */
   spotifyUrl?: string;
+  /** When false, timer is effectively paused */
+  isActive?: boolean;
+  /** When true, no sound/link auto-open; only visual due state */
+  silent?: boolean;
+  /** How many reminder pings since last full cycle */
+  reminderCount?: number;
 }
 
 export const CATEGORY_COLORS: Record<TaskCategory, string> = {

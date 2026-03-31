@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Essential } from '@/types';
-import { Check, Clock, Trash2 } from 'lucide-react';
+import { Check, Clock, Trash2, Pause, Play, BellOff } from 'lucide-react';
 
 interface EssentialCardProps {
   essential: Essential;
@@ -12,6 +12,8 @@ interface EssentialCardProps {
 
 export function EssentialCard({ essential, onUpdate, onDelete, onDone }: EssentialCardProps) {
   const [timeLeft, setTimeLeft] = useState(Math.max(0, essential.nextDue - Date.now()));
+  const isActive = essential.isActive !== false;
+  const isSilent = !!essential.silent;
   const openUrl = (() => {
     const raw = essential.spotifyUrl?.trim();
     if (!raw) return undefined;
@@ -81,17 +83,51 @@ export function EssentialCard({ essential, onUpdate, onDelete, onDone }: Essenti
       <div className="flex justify-between items-start mb-4">
         <div>
           <h3 className="text-xl font-black uppercase tracking-tight text-white">{essential.title}</h3>
-          <div className={`flex items-center gap-1 text-sm font-bold mt-1 ${isDue ? 'text-indigo-300 animate-pulse' : 'text-zinc-500'}`}>
-            <Clock className="w-4 h-4" />
-            {formatTimeLeft(timeLeft)}
+          <div className={`flex items-center gap-2 text-xs font-bold mt-1`}>
+            <span className={`flex items-center gap-1 ${isDue ? 'text-indigo-300 animate-pulse' : 'text-zinc-500'}`}>
+              <Clock className="w-4 h-4" />
+              {isActive ? formatTimeLeft(timeLeft) : 'Paused'}
+            </span>
+            {isSilent && <span className="px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 uppercase tracking-widest">Silent</span>}
           </div>
         </div>
-        <button 
-          onClick={() => onDelete(essential.id)}
-          className="text-zinc-600 hover:text-red-400 transition-colors p-2"
-        >
-          <Trash2 className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() =>
+              onUpdate({
+                ...essential,
+                isActive: !isActive,
+                reminderCount: 0,
+                nextDue: Date.now() + essential.intervalMinutes * 60000,
+              })
+            }
+            className="text-zinc-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-zinc-800"
+            title={isActive ? 'Pause this essential' : 'Resume this essential'}
+          >
+            {isActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              onUpdate({
+                ...essential,
+                silent: !isSilent,
+              })
+            }
+            className="text-zinc-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-zinc-800"
+            title={isSilent ? 'Disable silent mode' : 'Enable silent mode'}
+          >
+            <BellOff className={`w-4 h-4 ${isSilent ? 'text-zinc-200' : ''}`} />
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(essential.id)}
+            className="text-zinc-600 hover:text-red-400 transition-colors p-2"
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       <div className="mb-6">
