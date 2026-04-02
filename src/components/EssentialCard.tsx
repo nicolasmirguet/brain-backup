@@ -7,25 +7,14 @@ interface EssentialCardProps {
   essential: Essential;
   onUpdate: (updated: Essential) => void;
   onDelete: (id: string) => void;
-  onDone: (id: string) => void;
+  onRestart: (id: string) => void;
 }
 
-export function EssentialCard({ essential, onUpdate, onDelete, onDone }: EssentialCardProps) {
+export function EssentialCard({ essential, onUpdate, onDelete, onRestart }: EssentialCardProps) {
   const [timeLeft, setTimeLeft] = useState(Math.max(0, essential.nextDue - Date.now()));
   const isActive = essential.isActive !== false;
   const isSilent = !!essential.silent;
-  const openUrl = (() => {
-    const raw = (essential.mediaUrl ?? essential.spotifyUrl)?.trim();
-    if (!raw) return undefined;
-    const withProtocol = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(raw) ? raw : `https://${raw}`;
-    try {
-      const parsed = new URL(withProtocol);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
-      return parsed.toString();
-    } catch {
-      return undefined;
-    }
-  })();
+  const triggerMode = essential.triggerMode ?? 'alarm';
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -138,6 +127,38 @@ export function EssentialCard({ essential, onUpdate, onDelete, onDone }: Essenti
       </div>
 
       <div className="mb-4">
+        <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">Trigger mode</label>
+        <div className="flex bg-zinc-800 rounded-xl p-1 border border-zinc-700 mb-3">
+          <button
+            type="button"
+            onClick={() =>
+              onUpdate({
+                ...essential,
+                triggerMode: 'alarm',
+              })
+            }
+            className={`flex-1 py-2 rounded-lg font-black text-[11px] uppercase tracking-wider transition-colors ${
+              triggerMode === 'alarm' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Alarm
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              onUpdate({
+                ...essential,
+                triggerMode: 'link',
+              })
+            }
+            className={`flex-1 py-2 rounded-lg font-black text-[11px] uppercase tracking-wider transition-colors ${
+              triggerMode === 'link' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Link
+          </button>
+        </div>
+
         <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2">YouTube when due (optional)</label>
         <input
           type="url"
@@ -162,6 +183,7 @@ export function EssentialCard({ essential, onUpdate, onDelete, onDone }: Essenti
               isActive: !isActive,
               reminderCount: 0,
               nextDue: Date.now() + essential.intervalMinutes * 60000,
+              ringingUntil: undefined,
             })
           }
           className={`w-full py-3 px-4 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
@@ -174,27 +196,14 @@ export function EssentialCard({ essential, onUpdate, onDelete, onDone }: Essenti
         </button>
 
         <button
-          onClick={() => onDone(essential.id)}
+          onClick={() => onRestart(essential.id)}
           className={`w-full py-3 px-4 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
-            isDue 
-              ? 'bg-indigo-500 hover:bg-indigo-400 text-white shadow-[0_0_20px_rgba(79,70,229,0.4)]' 
-              : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
+            'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
           }`}
         >
-          <Check className="w-5 h-5" /> {isDue ? "Do It Now!" : "Did It Early"}
+          <Check className="w-5 h-5" /> Restart
         </button>
       </div>
-
-      {isDue && openUrl && (
-        <a
-          href={openUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-3 w-full py-3 px-4 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white transition-all shadow-[0_0_18px_rgba(34,197,94,0.35)]"
-        >
-          Open Link
-        </a>
-      )}
     </motion.div>
   );
 }

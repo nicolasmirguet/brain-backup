@@ -19,11 +19,6 @@ import { AppTour } from '@/components/AppTour';
 import { AuthScreen } from '@/components/AuthScreen';
 import { Plus, LayoutList, CheckSquare, BrainCircuit, Frown, Bell, Activity, CalendarClock, MessageSquare, Moon, RotateCcw, HelpCircle, LogOut, Brain, MoreHorizontal } from 'lucide-react';
 import { playTimerAlert, playEssentialAlarm, primeAlertAudio, type EssentialAlarmTheme } from '@/lib/alerts';
-import {
-  notificationsSupported,
-  requestEssentialNotificationPermission,
-  showEssentialDueNotification,
-} from '@/lib/notifications';
 
 const INITIAL_TASKS: Task[] = [
   {
@@ -135,19 +130,19 @@ export default function App() {
   const loadedRef = useRef(false);
   const essentialAlarmThemeRef = useRef<EssentialAlarmTheme>('alarm');
   const autoOpenedDueLinkRef = useRef<Set<string>>(new Set());
+  const alarmLoopRef = useRef<number | null>(null);
 
   const [energyLevel, setEnergyLevel] = useState<EnergyLevel>('functional');
   const [activeTab, setActiveTab] = useState<'tasks' | 'launchpads' | 'essentials' | 'history'>('tasks');
   const [funnyMessage, setFunnyMessage] = useState<string | null>(null);
   const [timerAlert, setTimerAlert] = useState<string | null>(null);
-  const [mediaAlarm, setMediaAlarm] = useState<{ url: string; title: string } | null>(null);
+  // No more "dismiss / open link" popups — triggers happen immediately.
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isCreateEssentialModalOpen, setIsCreateEssentialModalOpen] = useState(false);
   const [isCreateChecklistModalOpen, setIsCreateChecklistModalOpen] = useState(false);
   const [isDumpThoughtsOpen, setIsDumpThoughtsOpen] = useState(false);
   const [dumpThoughts, setDumpThoughts] = useState('');
   const [brainDumpEmail, setBrainDumpEmail] = useState('');
-  const [, setNotifBump] = useState(0);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
   const [tourPromptOpen, setTourPromptOpen] = useState(false);
@@ -184,6 +179,7 @@ export default function App() {
         reminderCount: 0,
         hasNotified: false,
         nextDue: now + (ess.intervalMinutes ?? 60) * 60_000,
+        ringingUntil: undefined,
       }));
       setTasks(t);
       setChecklists(c);
@@ -236,56 +232,91 @@ export default function App() {
       if (!loadedRef.current) return;
       setEssentials(prev => {
         const now = Date.now();
-        const dueItems = prev.filter(e => (e.isActive !== false) && now >= e.nextDue);
-        if (dueItems.length > 0) {
-          const audibleItems = dueItems.filter(e => !e.silent);
-          if (audibleItems.length > 0) {
-            queueMicrotask(() => {
+        // Start triggers for essentials that hit 0 (once), then "ring" for 5 minutes.
+        const toStart = prev.filter(
+          (e) => e.isActive !== false && now >= e.nextDue && !e.ringingUntil,
+        );
+
+        if (toStart.length > 0) {
+          queueMicrotask(() => {
+            // Trigger Alarm mode immediately
+            const alarmItems = toStart.filter((e) => (e.triggerMode ?? 'alarm') === 'alarm' && !e.silent);
+            if (alarmItems.length > 0) {
               void playEssentialAlarm(essentialAlarmThemeRef.current);
-              showEssentialDueNotification(audibleItems.map(e => e.title));
-              const msg =
-                audibleItems.length === 1
-                  ? `Essential Due: ${audibleItems[0].title}!`
-                  : `Essentials Due: ${audibleItems.map(e => e.title).join(', ')}!`;
-              setTimerAlert(msg);
-              setTimeout(() => setTimerAlert(null), 12000);
-              const linked = audibleItems.find((e) => normalizeExternalUrl(e.mediaUrl ?? e.spotifyUrl));
-              if (linked) {
-                const openUrl = normalizeExternalUrl(linked.mediaUrl ?? linked.spotifyUrl);
-                if (openUrl) {
-                  setMediaAlarm({ url: openUrl, title: linked.title });
-                  const openKey = `${linked.id}:${linked.nextDue}`;
-                  if (!autoOpenedDueLinkRef.current.has(openKey)) {
-                    autoOpenedDueLinkRef.current.add(openKey);
-                    // Best effort: browsers may block auto-open without recent user interaction.
-                    window.open(openUrl, '_blank', 'noopener,noreferrer');
-                  }
-                }
-                setTimeout(() => setMediaAlarm(null), 90_000);
+              // Keep ringing for 5 minutes (best effort: repeat sound every 15s)
+              if (alarmLoopRef.current == null) {
+                alarmLoopRef.current = window.setInterval(() => {
+                  void playEssentialAlarm(essentialAlarmThemeRef.current);
+                }, 15_000);
               }
-            });
-          }
+              const msg =
+                alarmItems.length === 1
+                  ? `Essential Due: ${alarmItems[0].title}!`
+                  : `Essentials Due: ${alarmItems.map((e) => e.title).join(', ')}!`;
+              setTimerAlert(msg);
+              setTimeout(() => setTimerAlert(null), 12_000);
+            }
+
+            // Trigger Link mode immediately (open once)
+            const linkItems = toStart.filter((e) => (e.triggerMode ?? 'alarm') === 'link' && !e.silent);
+            const linked = linkItems.find((e) => normalizeExternalUrl(e.mediaUrl ?? e.spotifyUrl));
+            if (linked) {
+              const openUrl = normalizeExternalUrl(linked.mediaUrl ?? linked.spotifyUrl);
+              if (openUrl) {
+                const openKey = `${linked.id}:${linked.nextDue}`;
+                if (!autoOpenedDueLinkRef.current.has(openKey)) {
+                  autoOpenedDueLinkRef.current.add(openKey);
+                  window.open(openUrl, '_blank', 'noopener,noreferrer');
+                }
+              }
+            }
+          });
         }
-        return prev.map(e => {
-          if (e.isActive === false) return e;
-          if (now < e.nextDue) return e;
-          const reminders = e.reminderCount ?? 0;
-          if (reminders < 3) {
+
+        const updated = prev.map((e) => {
+          if (e.isActive === false) {
+            return { ...e, ringingUntil: undefined };
+          }
+
+          // End ringing window → restart full interval
+          if (e.ringingUntil && now >= e.ringingUntil) {
             return {
               ...e,
+              ringingUntil: undefined,
+              nextDue: now + e.intervalMinutes * 60_000,
+              hasNotified: false,
+              reminderCount: 0,
+            };
+          }
+
+          // Start ringing window when due
+          if (!e.ringingUntil && now >= e.nextDue) {
+            return {
+              ...e,
+              ringingUntil: now + 5 * 60_000,
               nextDue: now + 5 * 60_000,
-              reminderCount: reminders + 1,
               hasNotified: true,
             };
           }
-          // After 3 reminders, restart full interval
-          return {
-            ...e,
-            nextDue: now + e.intervalMinutes * 60_000,
-            reminderCount: 0,
-            hasNotified: false,
-          };
+
+          return e;
         });
+
+        // If no essentials are actively ringing in alarm mode, stop the loop.
+        const anyAlarmRinging = updated.some(
+          (e) =>
+            e.isActive !== false &&
+            !!e.ringingUntil &&
+            now < (e.ringingUntil ?? 0) &&
+            (e.triggerMode ?? 'alarm') === 'alarm' &&
+            !e.silent,
+        );
+        if (!anyAlarmRinging && alarmLoopRef.current != null) {
+          clearInterval(alarmLoopRef.current);
+          alarmLoopRef.current = null;
+        }
+
+        return updated;
       });
     };
 
@@ -429,6 +460,7 @@ export default function App() {
         ...newEssential,
         mediaUrl: normalizeExternalUrl(newEssential.mediaUrl ?? newEssential.spotifyUrl),
         spotifyUrl: undefined,
+        triggerMode: newEssential.triggerMode ?? 'alarm',
       },
       ...essentials,
     ]);
@@ -442,6 +474,7 @@ export default function App() {
               ...updated,
               mediaUrl: normalizeExternalUrl(updated.mediaUrl ?? updated.spotifyUrl),
               spotifyUrl: undefined,
+              triggerMode: updated.triggerMode ?? 'alarm',
             }
           : e,
       ),
@@ -471,7 +504,7 @@ export default function App() {
     if (loadedRef.current && user) void saveToFirestore('bb_tutorial_seen', true, user.uid);
   };
 
-  const handleDoneEssential = (id: string) => {
+  const handleRestartEssential = (id: string) => {
     setEssentials(essentials.map(e => {
       if (e.id === id) {
         return {
@@ -479,11 +512,11 @@ export default function App() {
           nextDue: Date.now() + e.intervalMinutes * 60000,
           hasNotified: false,
           reminderCount: 0,
+          ringingUntil: undefined,
         };
       }
       return e;
     }));
-    setBrainPoints(prev => prev + 5); // Small dopamine hit for essentials
   };
 
   useEffect(() => {
@@ -618,34 +651,7 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        <AnimatePresence>
-          {mediaAlarm && (
-            <motion.div
-              initial={{ opacity: 0, y: 16, x: '-50%' }}
-              animate={{ opacity: 1, y: 0, x: '-50%' }}
-              exit={{ opacity: 0, y: 16, x: '-50%' }}
-              className="fixed bottom-28 left-1/2 z-[55] flex flex-col items-center gap-2 rounded-2xl border border-green-500/40 bg-zinc-900/95 px-5 py-4 shadow-[0_0_30px_rgba(34,197,94,0.25)] max-w-[90vw]"
-            >
-              <p className="text-xs font-black uppercase tracking-widest text-green-400">Essential link</p>
-              <p className="text-sm font-bold text-white text-center">{mediaAlarm.title}</p>
-              <a
-                href={mediaAlarm.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-xl bg-green-600 px-4 py-2 text-sm font-black uppercase tracking-wider text-white hover:bg-green-500"
-              >
-                Open Link
-              </a>
-              <button
-                type="button"
-                onClick={() => setMediaAlarm(null)}
-                className="text-xs text-zinc-500 hover:text-zinc-300 font-bold uppercase"
-              >
-                Dismiss
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Link triggers open immediately; no dismissable popup needed. */}
 
         <AnimatePresence>
           {funnyMessage && (
@@ -932,38 +938,6 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              {notificationsSupported() ? (
-                <div className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4 text-sm text-zinc-300">
-                  {Notification.permission === 'granted' ? (
-                    <p className="font-medium text-zinc-200">
-                      Desktop notifications are enabled. When an essential is due you get sound (after any tap in the app once), vibration if your device supports it, and a system notification if the tab is in the background.
-                    </p>
-                  ) : Notification.permission === 'denied' ? (
-                    <p className="font-medium text-amber-200/90">
-                      Pop-up notifications are blocked for this site. To get alerts when you are not looking at the tab, allow notifications in your browser settings for this page.
-                    </p>
-                  ) : (
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="font-medium text-zinc-200">
-                        Enable desktop alerts so essentials can ping you even when this tab is behind other windows.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await requestEssentialNotificationPermission();
-                          setNotifBump(n => n + 1);
-                        }}
-                        className="shrink-0 rounded-xl bg-indigo-600 px-4 py-2.5 font-black uppercase tracking-wider text-white hover:bg-indigo-500"
-                      >
-                        Enable alerts
-                      </button>
-                    </div>
-                  )}
-                  <p className="mt-3 text-xs leading-relaxed text-zinc-500">
-                    This app cannot send email by itself—email needs a mail server. What works here is in-browser sound plus optional system notifications while the app stays installed or open.
-                  </p>
-                </div>
-              ) : null}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <AnimatePresence>
                   {essentials.map(essential => (
@@ -972,7 +946,7 @@ export default function App() {
                       essential={essential}
                       onUpdate={handleUpdateEssential}
                       onDelete={handleDeleteEssential}
-                      onDone={handleDoneEssential}
+                      onRestart={handleRestartEssential}
                     />
                   ))}
                 </AnimatePresence>

@@ -14,6 +14,7 @@ export function CreateEssentialModal({ isOpen, onClose, onCreate }: CreateEssent
   const [title, setTitle] = useState('');
   const [intervalMinutes, setIntervalMinutes] = useState(90);
   const [mediaUrl, setMediaUrl] = useState('');
+  const [triggerMode, setTriggerMode] = useState<'alarm' | 'link'>('alarm');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +30,7 @@ export function CreateEssentialModal({ isOpen, onClose, onCreate }: CreateEssent
       isActive: false,
       silent: false,
       reminderCount: 0,
+      triggerMode,
       ...(url ? { mediaUrl: url } : {}),
     };
 
@@ -36,6 +38,7 @@ export function CreateEssentialModal({ isOpen, onClose, onCreate }: CreateEssent
     setTitle('');
     setIntervalMinutes(90);
     setMediaUrl('');
+    setTriggerMode('alarm');
     onClose();
   };
 
@@ -80,6 +83,32 @@ export function CreateEssentialModal({ isOpen, onClose, onCreate }: CreateEssent
                   className="w-full bg-zinc-800 border-2 border-zinc-700 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors font-bold"
                   autoFocus
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-zinc-400 uppercase tracking-widest mb-2">
+                  Trigger mode
+                </label>
+                <div className="flex bg-zinc-800 rounded-xl p-1 border border-zinc-700 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setTriggerMode('alarm')}
+                    className={`flex-1 py-2 rounded-lg font-black text-xs uppercase tracking-wider transition-colors ${
+                      triggerMode === 'alarm' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    Alarm
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTriggerMode('link')}
+                    className={`flex-1 py-2 rounded-lg font-black text-xs uppercase tracking-wider transition-colors ${
+                      triggerMode === 'link' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    Link
+                  </button>
+                </div>
               </div>
 
               <div>

@@ -56,6 +56,10 @@ export interface Essential {
   silent?: boolean;
   /** How many reminder pings since last full cycle */
   reminderCount?: number;
+  /** Which action should fire when due */
+  triggerMode?: 'alarm' | 'link';
+  /** When currently ringing/active, stop time (ms since epoch) */
+  ringingUntil?: number;
 }
 
 export const CATEGORY_COLORS: Record<TaskCategory, string> = {
