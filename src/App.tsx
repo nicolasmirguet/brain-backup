@@ -1029,7 +1029,7 @@ export default function App() {
                   <div>
                     <p className="text-sm font-black uppercase tracking-wider text-zinc-200">Alarm music</p>
                     <p className="text-xs text-zinc-500 mt-1">
-                      Free instrumental tracks (about 2+ min). When the track ends, the timer restarts. Link mode uses a 5-minute estimate for YouTube.
+                      Calm, rock, techno, and zen use real genre-matched tracks (about 3+ min). When the track ends, the timer restarts. Link mode uses a 5-minute estimate for YouTube.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1053,6 +1053,9 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+                <p className="text-[10px] text-zinc-600 mt-3 border-t border-zinc-800/80 pt-2 leading-relaxed">
+                  {ESSENTIAL_MUSIC_TRACKS[essentialAlarmTheme].description}: {ESSENTIAL_MUSIC_TRACKS[essentialAlarmTheme].credit}
+                </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <AnimatePresence>

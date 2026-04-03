@@ -1,30 +1,43 @@
 /**
- * Royalty-free instrumental demos from SoundHelix (https://www.soundhelix.com/) — full MP3s, each several minutes (≥ 2 min).
- * Used as alarm-session audio; when playback ends, the app restarts the essential cycle.
+ * Genre-matched reminder music (each track is ~3–9 minutes, ≥ 2 min).
+ *
+ * - Calm: ambient / chill — The Ambient Collective, “Mt. Sand” (Mooma). Internet Archive, CC BY-ND 3.0.
+ * - Rock: rock instrumental — Kevin MacLeod, “Big Rock”. CC BY 4.0 — https://incompetech.com
+ * - Techno: electronic / techno — Kevin MacLeod, “Shiny Tech”. CC BY 4.0 — https://incompetech.com
+ * - Zen: soft piano meditation — Kevin MacLeod, “Meditation Impromptu 03”. CC BY 4.0 — https://incompetech.com
+ *
+ * Streams from archive.org CDN (stable direct MP3 URLs for `<audio>`).
  */
 export type EssentialMusicTheme = 'calm' | 'rock' | 'techno' | 'zen';
 
 export const MIN_ALARM_MUSIC_MS = 2 * 60_000;
 
+const IA_SERENE = 'https://ia601304.us.archive.org/6/items/TheSereneFilesPartOne';
+const IA_KM = 'https://ia601304.us.archive.org/11/items/KevinMacLeod';
+
 export const ESSENTIAL_MUSIC_TRACKS: Record<
   EssentialMusicTheme,
-  { url: string; description: string }
+  { url: string; description: string; credit: string }
 > = {
   calm: {
-    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3',
-    description: 'Calm / ambient',
+    url: `${IA_SERENE}/01-Mt.Sand-by-Mooma.mp3`,
+    description: 'Ambient chill',
+    credit: 'Mooma / The Ambient Collective (CC BY-ND 3.0)',
   },
   rock: {
-    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3',
-    description: 'Driving / upbeat',
+    url: `${IA_KM}/Rock%2FBig%20Rock.mp3`,
+    description: 'Rock instrumental',
+    credit: 'Kevin MacLeod — incompetech.com (CC BY 4.0)',
   },
   techno: {
-    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-    description: 'Electronic',
+    url: `${IA_KM}/Electronica%2FShiny%20Tech.mp3`,
+    description: 'Techno / electronic',
+    credit: 'Kevin MacLeod — incompetech.com (CC BY 4.0)',
   },
   zen: {
-    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3',
-    description: 'Soft / minimal',
+    url: `${IA_KM}/Contemporary%2FMeditation%20Impromptu%2003.mp3`,
+    description: 'Soft piano meditation',
+    credit: 'Kevin MacLeod — incompetech.com (CC BY 4.0)',
   },
 };
 
