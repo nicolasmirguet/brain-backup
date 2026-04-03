@@ -26,6 +26,8 @@ const LEGACY_KEYS = [
   'bb_points',
   'bb_essential_alarm_theme',
   'bb_brain_dump_email',
+  'bb_brain_dump_text',
+  'bb_brain_dump_ai',
   'bb_tutorial_seen',
 ] as const;
 

@@ -40,10 +40,18 @@ export interface Checklist {
   items: ChecklistItem[];
 }
 
+/** Last Organise-with-AI result, persisted so it survives refresh and reopening the modal. */
+export interface BrainDumpAiSnapshot {
+  summary: string;
+  items: { text: string; isTask: boolean; selected: boolean }[];
+}
+
 export interface Essential {
   id: string;
   title: string;
-  intervalMinutes: number; // 5 to 300
+  intervalMinutes: number; // 5 to 300 (ignored for timing when intervalSeconds is set)
+  /** When set, reminder interval uses seconds (e.g. 20 for a short test). */
+  intervalSeconds?: number;
   nextDue: number; // timestamp
   hasNotified: boolean;
   /** Optional external media URL (e.g. YouTube) shown when this essential is due */

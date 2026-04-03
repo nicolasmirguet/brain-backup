@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, MessageSquare, Sparkles, Plus, Mail, BookOpen, Loader2, ChevronRight, Check, Save } from 'lucide-react';
+import { X, MessageSquare, Sparkles, Plus, Mail, BookOpen, Loader2, ChevronRight, Check, Save, RotateCcw } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { Task, TaskCategory, EnergyLevel } from '../types';
+import { Task, TaskCategory, EnergyLevel, type BrainDumpAiSnapshot } from '../types';
 import { callLlm } from '@/lib/callLlm';
 
 interface DumpThoughtsModalProps {
@@ -10,6 +10,12 @@ interface DumpThoughtsModalProps {
   onClose: () => void;
   thoughts: string;
   onChange: (thoughts: string) => void;
+  /** Last AI tidy (persisted in Firestore by parent). */
+  aiSnapshot?: BrainDumpAiSnapshot | null;
+  onPersistAi?: (snapshot: BrainDumpAiSnapshot) => void;
+  onClearAi?: () => void;
+  /** Clears saved dump text + AI snapshot (Firestore). */
+  onFreshStart?: () => void;
   onCreateTasks?: (tasks: Task[]) => void;
   /** Last used email for brain-dump copies (persisted in Firestore by parent). */
   savedEmail?: string;
@@ -30,6 +36,10 @@ export function DumpThoughtsModal({
   onClose,
   thoughts,
   onChange,
+  aiSnapshot = null,
+  onPersistAi,
+  onClearAi,
+  onFreshStart,
   onCreateTasks,
   savedEmail = '',
   onPersistEmail,
@@ -47,14 +57,12 @@ export function DumpThoughtsModal({
   const [tasksSaved, setTasksSaved] = useState(false);
   const [keptLocally, setKeptLocally] = useState(false);
   const [error, setError] = useState('');
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpenRef.current) {
       setLocalThoughts(thoughts);
-      setStage('dump');
       setSavedConfirm(false);
-      setPolishedSummary('');
-      setParsedItems([]);
       setEmailAddress(savedEmail || '');
       setShowEmailInput(false);
       setEmailSent(false);
@@ -63,8 +71,63 @@ export function DumpThoughtsModal({
       setTasksSaved(false);
       setKeptLocally(false);
       setError('');
+      const hasAi =
+        aiSnapshot &&
+        (aiSnapshot.summary.trim().length > 0 || (aiSnapshot.items && aiSnapshot.items.length > 0));
+      if (hasAi && aiSnapshot) {
+        setStage('results');
+        setPolishedSummary(aiSnapshot.summary || '');
+        setParsedItems(
+          (aiSnapshot.items || []).map((item) => ({
+            id: uuidv4(),
+            text: item.text,
+            isTask: item.isTask,
+            selected: item.selected,
+          })),
+        );
+      } else {
+        setStage('dump');
+        setPolishedSummary('');
+        setParsedItems([]);
+      }
     }
-  }, [isOpen, savedEmail]);
+    wasOpenRef.current = isOpen;
+  }, [isOpen, thoughts, aiSnapshot, savedEmail]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const id = window.setTimeout(() => {
+      onChange(localThoughts);
+    }, 450);
+    return () => window.clearTimeout(id);
+  }, [localThoughts, isOpen, onChange]);
+
+  useEffect(() => {
+    if (!isOpen || stage !== 'results' || !onPersistAi) return;
+    const id = window.setTimeout(() => {
+      onPersistAi({
+        summary: polishedSummary,
+        items: parsedItems.map(({ text, isTask, selected }) => ({ text, isTask, selected })),
+      });
+    }, 400);
+    return () => window.clearTimeout(id);
+  }, [isOpen, stage, polishedSummary, parsedItems, onPersistAi]);
+
+  const handleFreshStartClick = () => {
+    const ok = window.confirm(
+      'Clear your saved brain dump and the last AI tidy? You can start from a blank page. This cannot be undone.',
+    );
+    if (!ok) return;
+    setLocalThoughts('');
+    setStage('dump');
+    setPolishedSummary('');
+    setParsedItems([]);
+    setSavedConfirm(false);
+    setTasksSaved(false);
+    setKeptLocally(false);
+    setError('');
+    onFreshStart?.();
+  };
 
   // Save just persists text and closes — no AI
   const handleSave = () => {
@@ -114,14 +177,23 @@ Rules:
         parsed = JSON.parse(match[0]);
       }
 
-      setPolishedSummary(parsed.summary || '');
-      setParsedItems(
-        (parsed.items || []).map((item: { text: string; isTask: boolean }) => ({
-          id: uuidv4(),
+      const summary = parsed.summary || '';
+      const persistedItems: BrainDumpAiSnapshot['items'] = (parsed.items || []).map(
+        (item: { text: string; isTask: boolean }) => ({
           text: item.text,
           isTask: item.isTask,
           selected: item.isTask,
-        }))
+        }),
+      );
+      onPersistAi?.({ summary, items: persistedItems });
+      setPolishedSummary(summary);
+      setParsedItems(
+        persistedItems.map((item) => ({
+          id: uuidv4(),
+          text: item.text,
+          isTask: item.isTask,
+          selected: item.selected,
+        })),
       );
       setStage('results');
     } catch (err) {
@@ -155,7 +227,10 @@ Rules:
 
   const handleKeepHere = () => {
     const allText = parsedItems.map(i => `• ${i.text}`).join('\n');
-    onChange(polishedSummary + '\n\n' + allText);
+    const merged = [polishedSummary.trim(), allText].filter(Boolean).join('\n\n');
+    onChange(merged);
+    setLocalThoughts(merged);
+    onClearAi?.();
     setKeptLocally(true);
   };
 
@@ -222,19 +297,38 @@ Rules:
             style={{ maxHeight: '90vh' }}
           >
             {/* Header */}
-            <div className="flex justify-between items-center p-6 border-b border-zinc-800/60 flex-shrink-0">
-              <h2 className="text-xl font-black uppercase tracking-tight text-white flex items-center gap-2">
-                <div className="bg-indigo-600/20 p-1.5 rounded-lg">
+            <div className="flex justify-between items-center gap-2 p-6 border-b border-zinc-800/60 flex-shrink-0">
+              <h2 className="text-xl font-black uppercase tracking-tight text-white flex items-center gap-2 min-w-0">
+                <div className="bg-indigo-600/20 p-1.5 rounded-lg flex-shrink-0">
                   <MessageSquare className="w-5 h-5 text-indigo-400" />
                 </div>
-                {stage === 'dump' ? 'Brain Dump' : stage === 'processing' ? 'Organising…' : 'Your Thoughts, Sorted'}
+                <span className="truncate">
+                  {stage === 'dump' ? 'Brain Dump' : stage === 'processing' ? 'Organising…' : 'Your Thoughts, Sorted'}
+                </span>
               </h2>
-              <button
-                onClick={() => { onChange(localThoughts); onClose(); }}
-                className="p-2 hover:bg-zinc-800 rounded-full text-zinc-400 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {onFreshStart && (
+                  <button
+                    type="button"
+                    onClick={handleFreshStartClick}
+                    className="p-2 hover:bg-zinc-800 rounded-full text-zinc-500 hover:text-amber-400 transition-colors"
+                    title="Fresh start — clear saved dump and AI tidy"
+                  >
+                    <RotateCcw className="w-5 h-5" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange(localThoughts);
+                    onClose();
+                  }}
+                  className="p-2 hover:bg-zinc-800 rounded-full text-zinc-400 transition-colors"
+                  title="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -250,7 +344,8 @@ Rules:
                     className="p-6 space-y-4"
                   >
                     <p className="text-sm text-zinc-400 leading-relaxed">
-                      Dump everything here throughout your day. Tap <span className="text-white font-bold">Save</span> to keep adding later. When you're ready to process it all, hit <span className="text-indigo-400 font-bold">Organise with AI</span>.
+                      Your text is <span className="text-white font-bold">saved automatically</span> to your account (about every half second while you type). Close the window anytime — it will still be here. Use{' '}
+                      <span className="text-amber-400 font-bold">Fresh start</span> (↻) only when you want a blank dump.
                     </p>
 
                     <div className="relative">
@@ -305,10 +400,21 @@ Rules:
                       </motion.button>
                     </div>
 
-                    {thoughts.trim() && (
+                    {(thoughts.trim() || localThoughts.trim()) && (
                       <p className="text-center text-zinc-600 text-xs">
-                        {thoughts.length} chars already saved · keep adding or hit AI when ready
+                        {Math.max(thoughts.length, localThoughts.length)} chars in your saved dump · add more or organise with AI when ready
                       </p>
+                    )}
+
+                    {onFreshStart && (
+                      <button
+                        type="button"
+                        onClick={handleFreshStartClick}
+                        className="w-full py-2.5 rounded-xl border border-zinc-800 text-zinc-500 hover:text-amber-400 hover:border-zinc-700 text-xs font-black uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        Fresh start — clear dump and AI tidy
+                      </button>
                     )}
                   </motion.div>
                 )}

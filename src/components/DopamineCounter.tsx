@@ -19,7 +19,7 @@ export function DopamineCounter({ points }: DopamineCounterProps) {
   }, [points]);
 
   return (
-    <div className="flex items-center gap-1.5 bg-zinc-900 border border-yellow-500/45 rounded-full px-3 py-1.5 shadow-[0_0_14px_rgba(234,179,8,0.25)]">
+    <div className="h-10 flex items-center gap-1.5 bg-zinc-900 border border-yellow-500/45 rounded-full px-3 shadow-[0_0_14px_rgba(234,179,8,0.25)]">
       <Zap className="w-4.5 h-4.5 text-yellow-400 fill-yellow-400 animate-pulse" />
       <div className="flex flex-col">
         <span className="text-[9px] font-black uppercase tracking-widest text-yellow-500/80 leading-none">Brain Points</span>

@@ -3,7 +3,7 @@ import { loadFromFirestore, saveToFirestore, auth, migrateLegacyUserData } from 
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { motion, AnimatePresence } from 'motion/react';
 import { v4 as uuidv4 } from 'uuid';
-import { Task, Checklist, EnergyLevel, Essential } from '@/types';
+import { Task, Checklist, EnergyLevel, Essential, type BrainDumpAiSnapshot } from '@/types';
 import { TaskCard } from '@/components/TaskCard';
 import { ChecklistCard } from '@/components/ChecklistCard';
 import { EssentialCard } from '@/components/EssentialCard';
@@ -18,7 +18,17 @@ import { DumpThoughtsModal } from '@/components/DumpThoughtsModal';
 import { AppTour } from '@/components/AppTour';
 import { AuthScreen } from '@/components/AuthScreen';
 import { Plus, LayoutList, CheckSquare, BrainCircuit, Frown, Bell, Activity, CalendarClock, MessageSquare, Moon, RotateCcw, HelpCircle, LogOut, Brain, MoreHorizontal } from 'lucide-react';
-import { playTimerAlert, playEssentialAlarm, primeAlertAudio, type EssentialAlarmTheme } from '@/lib/alerts';
+import { playTimerAlert, primeAlertAudio } from '@/lib/alerts';
+import { getEssentialIntervalMs } from '@/lib/essentialInterval';
+import {
+  ESSENTIAL_MUSIC_TRACKS,
+  LINK_SESSION_MS,
+  MIN_ALARM_MUSIC_MS,
+  SILENT_ALARM_SESSION_MS,
+  migrateEssentialMusicTheme,
+  previewEssentialMusicTheme,
+  type EssentialMusicTheme,
+} from '@/lib/essentialMusic';
 
 const INITIAL_TASKS: Task[] = [
   {
@@ -103,8 +113,36 @@ const INITIAL_ESSENTIALS: Essential[] = [
     isActive: false,
     silent: false,
     reminderCount: 0,
-  }
+  },
+  {
+    id: 'essential-test-20s',
+    title: 'Test (20s provisional)',
+    intervalMinutes: 5,
+    intervalSeconds: 20,
+    nextDue: Date.now() + 20_000,
+    hasNotified: false,
+    isActive: false,
+    silent: false,
+    reminderCount: 0,
+  },
 ];
+
+function parseBrainDumpAi(raw: unknown): BrainDumpAiSnapshot | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const summary = typeof o.summary === 'string' ? o.summary : '';
+  const arr = Array.isArray(o.items) ? o.items : [];
+  const items = arr
+    .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object')
+    .map((i) => ({
+      text: typeof i.text === 'string' ? i.text : '',
+      isTask: Boolean(i.isTask),
+      selected: i.selected !== false,
+    }))
+    .filter((i) => i.text.length > 0);
+  if (!summary.trim() && items.length === 0) return null;
+  return { summary, items };
+}
 
 function normalizeExternalUrl(raw?: string): string | undefined {
   const trimmed = raw?.trim();
@@ -126,11 +164,12 @@ export default function App() {
   const [checklists, setChecklists] = useState<Checklist[]>(INITIAL_CHECKLISTS);
   const [essentials, setEssentials] = useState<Essential[]>(INITIAL_ESSENTIALS);
   const [brainPoints, setBrainPoints] = useState<number>(0);
-  const [essentialAlarmTheme, setEssentialAlarmTheme] = useState<EssentialAlarmTheme>('alarm');
+  const [essentialAlarmTheme, setEssentialAlarmTheme] = useState<EssentialMusicTheme>('calm');
   const loadedRef = useRef(false);
-  const essentialAlarmThemeRef = useRef<EssentialAlarmTheme>('alarm');
+  const essentialAlarmThemeRef = useRef<EssentialMusicTheme>('calm');
   const autoOpenedDueLinkRef = useRef<Set<string>>(new Set());
-  const alarmLoopRef = useRef<number | null>(null);
+  const essentialMusicAudioRef = useRef<HTMLAudioElement | null>(null);
+  const essentialAlarmBatchIdsRef = useRef<string[] | null>(null);
 
   const [energyLevel, setEnergyLevel] = useState<EnergyLevel>('functional');
   const [activeTab, setActiveTab] = useState<'tasks' | 'launchpads' | 'essentials' | 'history'>('tasks');
@@ -142,6 +181,7 @@ export default function App() {
   const [isCreateChecklistModalOpen, setIsCreateChecklistModalOpen] = useState(false);
   const [isDumpThoughtsOpen, setIsDumpThoughtsOpen] = useState(false);
   const [dumpThoughts, setDumpThoughts] = useState('');
+  const [dumpAiSnapshot, setDumpAiSnapshot] = useState<BrainDumpAiSnapshot | null>(null);
   const [brainDumpEmail, setBrainDumpEmail] = useState('');
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
@@ -168,26 +208,37 @@ export default function App() {
       loadFromFirestore<Checklist[]>('bb_checklists', INITIAL_CHECKLISTS, uid),
       loadFromFirestore<Essential[]>('bb_essentials', INITIAL_ESSENTIALS, uid),
       loadFromFirestore<number>('bb_points', 0, uid),
-      loadFromFirestore<EssentialAlarmTheme>('bb_essential_alarm_theme', 'alarm', uid),
+      loadFromFirestore<EssentialMusicTheme>('bb_essential_alarm_theme', 'calm', uid),
       loadFromFirestore<string>('bb_brain_dump_email', '', uid),
+      loadFromFirestore<string>('bb_brain_dump_text', '', uid),
+      loadFromFirestore<unknown>('bb_brain_dump_ai', null, uid),
       loadFromFirestore<boolean>('bb_tutorial_seen', false, uid),
-    ]).then(([t, c, e, p, theme, email, seenTutorial]) => {
+    ]).then(([t, c, e, p, theme, email, dumpText, dumpAiRaw, seenTutorial]) => {
       const now = Date.now();
-      const hydratedEssentials = (e ?? INITIAL_ESSENTIALS).map((ess) => ({
+      const baseList = e ?? INITIAL_ESSENTIALS;
+      const testTemplate = INITIAL_ESSENTIALS.find((x) => x.id === 'essential-test-20s');
+      const merged =
+        testTemplate && !baseList.some((x) => x.id === 'essential-test-20s')
+          ? [...baseList, testTemplate]
+          : baseList;
+      const hydratedEssentials = merged.map((ess) => ({
         ...ess,
         isActive: false,
         reminderCount: 0,
         hasNotified: false,
-        nextDue: now + (ess.intervalMinutes ?? 60) * 60_000,
+        nextDue: now + getEssentialIntervalMs(ess),
         ringingUntil: undefined,
       }));
       setTasks(t);
       setChecklists(c);
       setEssentials(hydratedEssentials);
       setBrainPoints(p);
-      setEssentialAlarmTheme(theme);
-      essentialAlarmThemeRef.current = theme;
+      const migratedTheme = migrateEssentialMusicTheme(theme);
+      setEssentialAlarmTheme(migratedTheme);
+      essentialAlarmThemeRef.current = migratedTheme;
       setBrainDumpEmail(typeof email === 'string' ? email : '');
+      setDumpThoughts(typeof dumpText === 'string' ? dumpText : '');
+      setDumpAiSnapshot(parseBrainDumpAi(dumpAiRaw));
       if (!seenTutorial) {
         setTourPromptOpen(true);
       }
@@ -216,6 +267,19 @@ export default function App() {
     void saveToFirestore('bb_essential_alarm_theme', essentialAlarmTheme, user.uid);
   }, [essentialAlarmTheme, user]);
 
+  useEffect(() => {
+    if (!loadedRef.current || !user) return;
+    const t = window.setTimeout(() => {
+      void saveToFirestore('bb_brain_dump_text', dumpThoughts, user.uid);
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [dumpThoughts, user]);
+
+  useEffect(() => {
+    if (!loadedRef.current || !user) return;
+    void saveToFirestore('bb_brain_dump_ai', dumpAiSnapshot, user.uid);
+  }, [dumpAiSnapshot, user]);
+
   // Unlock audio on first tap — browsers block sound until user gesture.
   useEffect(() => {
     const warm = () => void primeAlertAudio();
@@ -228,39 +292,92 @@ export default function App() {
   }, [essentialAlarmTheme]);
 
   useEffect(() => {
+    const stopEssentialMusicPlayback = () => {
+      const a = essentialMusicAudioRef.current;
+      if (a) {
+        a.pause();
+        a.src = '';
+        essentialMusicAudioRef.current = null;
+      }
+    };
+
+    const finishAlarmBatchFromAudio = (ids: string[]) => {
+      stopEssentialMusicPlayback();
+      essentialAlarmBatchIdsRef.current = null;
+      setEssentials(prev =>
+        prev.map(e => {
+          if (!ids.includes(e.id) || !e.ringingUntil) return e;
+          return {
+            ...e,
+            ringingUntil: undefined,
+            nextDue: Date.now() + getEssentialIntervalMs(e),
+            hasNotified: false,
+            reminderCount: 0,
+          };
+        }),
+      );
+    };
+
     const runEssentialCheck = () => {
       if (!loadedRef.current) return;
       setEssentials(prev => {
         const now = Date.now();
-        // Start triggers for essentials that hit 0 (once), then "ring" for 5 minutes.
         const toStart = prev.filter(
-          (e) => e.isActive !== false && now >= e.nextDue && !e.ringingUntil,
+          e => e.isActive !== false && now >= e.nextDue && !e.ringingUntil,
         );
 
         if (toStart.length > 0) {
+          const alarmNonSilent = toStart.filter(
+            e => (e.triggerMode ?? 'alarm') === 'alarm' && !e.silent,
+          );
           queueMicrotask(() => {
-            // Trigger Alarm mode immediately
-            const alarmItems = toStart.filter((e) => (e.triggerMode ?? 'alarm') === 'alarm' && !e.silent);
-            if (alarmItems.length > 0) {
-              void playEssentialAlarm(essentialAlarmThemeRef.current);
-              // Keep ringing for 5 minutes (best effort: repeat sound every 15s)
-              if (alarmLoopRef.current == null) {
-                alarmLoopRef.current = window.setInterval(() => {
-                  void playEssentialAlarm(essentialAlarmThemeRef.current);
-                }, 15_000);
-              }
+            if (alarmNonSilent.length > 0) {
+              essentialAlarmBatchIdsRef.current = alarmNonSilent.map(e => e.id);
+              const theme = essentialAlarmThemeRef.current;
+              const { url } = ESSENTIAL_MUSIC_TRACKS[theme];
+              const audio = new Audio(url);
+              essentialMusicAudioRef.current = audio;
+
+              const applySessionMs = (sessionMs: number) => {
+                const end = Date.now() + sessionMs;
+                setEssentials(p =>
+                  p.map(e =>
+                    essentialAlarmBatchIdsRef.current?.includes(e.id)
+                      ? { ...e, ringingUntil: end, nextDue: end, hasNotified: true }
+                      : e,
+                  ),
+                );
+              };
+
+              audio.addEventListener('loadedmetadata', () => {
+                const sec = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 120;
+                const sessionMs = Math.max(sec * 1000, MIN_ALARM_MUSIC_MS);
+                applySessionMs(sessionMs);
+              });
+              audio.addEventListener('ended', () => {
+                const ids = essentialAlarmBatchIdsRef.current;
+                if (!ids?.length) return;
+                finishAlarmBatchFromAudio(ids);
+              });
+              audio.addEventListener('error', () => {
+                applySessionMs(MIN_ALARM_MUSIC_MS);
+              });
+              void audio.play().catch(() => {
+                applySessionMs(MIN_ALARM_MUSIC_MS);
+              });
+
               const msg =
-                alarmItems.length === 1
-                  ? `Essential Due: ${alarmItems[0].title}!`
-                  : `Essentials Due: ${alarmItems.map((e) => e.title).join(', ')}!`;
+                alarmNonSilent.length === 1
+                  ? `Essential Due: ${alarmNonSilent[0].title}!`
+                  : `Essentials Due: ${alarmNonSilent.map(e => e.title).join(', ')}!`;
               setTimerAlert(msg);
               setTimeout(() => setTimerAlert(null), 12_000);
             }
 
-            // Trigger Link mode immediately (open once)
-            const linkItems = toStart.filter((e) => (e.triggerMode ?? 'alarm') === 'link' && !e.silent);
-            const linked = linkItems.find((e) => normalizeExternalUrl(e.mediaUrl ?? e.spotifyUrl));
-            if (linked) {
+            const linkItems = toStart.filter(
+              e => (e.triggerMode ?? 'alarm') === 'link' && !e.silent,
+            );
+            for (const linked of linkItems) {
               const openUrl = normalizeExternalUrl(linked.mediaUrl ?? linked.spotifyUrl);
               if (openUrl) {
                 const openKey = `${linked.id}:${linked.nextDue}`;
@@ -273,50 +390,45 @@ export default function App() {
           });
         }
 
-        const updated = prev.map((e) => {
+        let stoppedBatchAudio = false;
+        return prev.map(e => {
           if (e.isActive === false) {
             return { ...e, ringingUntil: undefined };
           }
 
-          // End ringing window → restart full interval
           if (e.ringingUntil && now >= e.ringingUntil) {
+            const batch = essentialAlarmBatchIdsRef.current;
+            if (batch?.includes(e.id) && !stoppedBatchAudio) {
+              stoppedBatchAudio = true;
+              stopEssentialMusicPlayback();
+              essentialAlarmBatchIdsRef.current = null;
+            }
             return {
               ...e,
               ringingUntil: undefined,
-              nextDue: now + e.intervalMinutes * 60_000,
+              nextDue: now + getEssentialIntervalMs(e),
               hasNotified: false,
               reminderCount: 0,
             };
           }
 
-          // Start ringing window when due
           if (!e.ringingUntil && now >= e.nextDue) {
-            return {
-              ...e,
-              ringingUntil: now + 5 * 60_000,
-              nextDue: now + 5 * 60_000,
-              hasNotified: true,
-            };
+            if ((e.triggerMode ?? 'alarm') === 'alarm' && e.silent) {
+              const end = now + SILENT_ALARM_SESSION_MS;
+              return { ...e, ringingUntil: end, nextDue: end, hasNotified: true };
+            }
+            if ((e.triggerMode ?? 'alarm') === 'link') {
+              const end = now + LINK_SESSION_MS;
+              return { ...e, ringingUntil: end, nextDue: end, hasNotified: true };
+            }
+            if ((e.triggerMode ?? 'alarm') === 'alarm' && !e.silent) {
+              const end = now + MIN_ALARM_MUSIC_MS;
+              return { ...e, ringingUntil: end, nextDue: end, hasNotified: true };
+            }
           }
 
           return e;
         });
-
-        // If no essentials are actively ringing in alarm mode, stop the loop.
-        const anyAlarmRinging = updated.some(
-          (e) =>
-            e.isActive !== false &&
-            !!e.ringingUntil &&
-            now < (e.ringingUntil ?? 0) &&
-            (e.triggerMode ?? 'alarm') === 'alarm' &&
-            !e.silent,
-        );
-        if (!anyAlarmRinging && alarmLoopRef.current != null) {
-          clearInterval(alarmLoopRef.current);
-          alarmLoopRef.current = null;
-        }
-
-        return updated;
       });
     };
 
@@ -328,6 +440,7 @@ export default function App() {
     return () => {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVis);
+      stopEssentialMusicPlayback();
     };
   }, []);
 
@@ -490,6 +603,11 @@ export default function App() {
     if (loadedRef.current && user) void saveToFirestore('bb_brain_dump_email', email, user.uid);
   };
 
+  const handleFreshBrainDump = () => {
+    setDumpThoughts('');
+    setDumpAiSnapshot(null);
+  };
+
   const handleTourComplete = () => {
     if (loadedRef.current && user) void saveToFirestore('bb_tutorial_seen', true, user.uid);
   };
@@ -509,7 +627,7 @@ export default function App() {
       if (e.id === id) {
         return {
           ...e,
-          nextDue: Date.now() + e.intervalMinutes * 60000,
+          nextDue: Date.now() + getEssentialIntervalMs(e),
           hasNotified: false,
           reminderCount: 0,
           ringingUntil: undefined,
@@ -560,14 +678,6 @@ export default function App() {
               title="Quick tutorial (~45s)"
             >
               <HelpCircle className="w-5 h-5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => void playTimerAlert()}
-              className="h-10 w-10 bg-zinc-900 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors border border-zinc-800 flex items-center justify-center"
-              title="Test Timer Alert"
-            >
-              <Bell className="w-5 h-5" />
             </button>
             <button
               type="button"
@@ -760,6 +870,10 @@ export default function App() {
           onClose={() => setIsDumpThoughtsOpen(false)}
           thoughts={dumpThoughts}
           onChange={setDumpThoughts}
+          aiSnapshot={dumpAiSnapshot}
+          onPersistAi={setDumpAiSnapshot}
+          onClearAi={() => setDumpAiSnapshot(null)}
+          onFreshStart={handleFreshBrainDump}
           onCreateTasks={(newTasks) => setTasks(prev => [...newTasks, ...prev])}
           savedEmail={brainDumpEmail}
           onPersistEmail={handlePersistBrainDumpEmail}
@@ -913,23 +1027,25 @@ export default function App() {
               <div className="mb-4 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4" data-tour="essentials-alarm">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm font-black uppercase tracking-wider text-zinc-200">Alarm sound</p>
-                    <p className="text-xs text-zinc-500 mt-1">Pick a vibe for essential reminders.</p>
+                    <p className="text-sm font-black uppercase tracking-wider text-zinc-200">Alarm music</p>
+                    <p className="text-xs text-zinc-500 mt-1">
+                      Free instrumental tracks (about 2+ min). When the track ends, the timer restarts. Link mode uses a 5-minute estimate for YouTube.
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <select
                       value={essentialAlarmTheme}
-                      onChange={(e) => setEssentialAlarmTheme(e.target.value as EssentialAlarmTheme)}
+                      onChange={(e) => setEssentialAlarmTheme(e.target.value as EssentialMusicTheme)}
                       className="bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm font-bold text-white focus:outline-none focus:border-indigo-500"
                     >
-                      <option value="alarm">Alarm</option>
-                      <option value="chill">Chill</option>
-                      <option value="funny">Funny</option>
-                      <option value="scifi">Sci‑fi</option>
+                      <option value="calm">Calm</option>
+                      <option value="rock">Rock</option>
+                      <option value="techno">Techno</option>
+                      <option value="zen">Zen</option>
                     </select>
                     <button
                       type="button"
-                      onClick={() => void playEssentialAlarm(essentialAlarmTheme)}
+                      onClick={() => previewEssentialMusicTheme(essentialAlarmTheme)}
                       className="rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-3 py-2 text-sm font-black uppercase tracking-wider text-zinc-200"
                       title="Test essential alarm"
                     >

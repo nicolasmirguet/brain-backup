@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Essential } from '@/types';
 import { Check, Clock, Trash2, BellOff } from 'lucide-react';
+import { getEssentialIntervalMs } from '@/lib/essentialInterval';
 
 interface EssentialCardProps {
   essential: Essential;
@@ -23,16 +24,16 @@ export function EssentialCard({ essential, onUpdate, onDelete, onRestart }: Esse
     return () => clearInterval(interval);
   }, [essential.nextDue]);
 
+  const isSecondsTest = typeof essential.intervalSeconds === 'number';
+
   const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newInterval = parseInt(e.target.value, 10);
-    // If we change the interval, let's just update the interval. 
-    // We won't reset nextDue immediately unless it's already due, 
-    // or we could just reset nextDue to now + newInterval to be safe.
     onUpdate({
       ...essential,
       intervalMinutes: newInterval,
+      intervalSeconds: undefined,
       nextDue: Date.now() + newInterval * 60000,
-      hasNotified: false
+      hasNotified: false,
     });
   };
 
@@ -42,6 +43,11 @@ export function EssentialCard({ essential, onUpdate, onDelete, onRestart }: Esse
     if (h > 0 && m > 0) return `${h}h ${m}m`;
     if (h > 0) return `${h}h`;
     return `${m}m`;
+  };
+
+  const formatEveryLabel = () => {
+    if (isSecondsTest) return `Every ${essential.intervalSeconds}s (test)`;
+    return `Every ${formatInterval(essential.intervalMinutes)}`;
   };
 
   const formatTimeLeft = (ms: number) => {
@@ -109,21 +115,29 @@ export function EssentialCard({ essential, onUpdate, onDelete, onRestart }: Esse
       <div className="mb-6">
         <div className="flex justify-between text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">
           <span>Intensity</span>
-          <span className="text-indigo-400">Every {formatInterval(essential.intervalMinutes)}</span>
+          <span className="text-indigo-400">{formatEveryLabel()}</span>
         </div>
-        <input 
-          type="range" 
-          min="5" 
-          max="300" 
-          step="5"
-          value={essential.intervalMinutes}
-          onChange={handleSliderChange}
-          className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-        />
-        <div className="flex justify-between text-[10px] font-bold text-zinc-600 uppercase mt-1">
-          <span>High (5m)</span>
-          <span>Low (5h)</span>
-        </div>
+        {isSecondsTest ? (
+          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+            Fixed test interval — use Restart to reset the countdown.
+          </p>
+        ) : (
+          <>
+            <input
+              type="range"
+              min="5"
+              max="300"
+              step="5"
+              value={essential.intervalMinutes}
+              onChange={handleSliderChange}
+              className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+            />
+            <div className="flex justify-between text-[10px] font-bold text-zinc-600 uppercase mt-1">
+              <span>High (5m)</span>
+              <span>Low (5h)</span>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="mb-4">
@@ -182,7 +196,7 @@ export function EssentialCard({ essential, onUpdate, onDelete, onRestart }: Esse
               ...essential,
               isActive: !isActive,
               reminderCount: 0,
-              nextDue: Date.now() + essential.intervalMinutes * 60000,
+              nextDue: Date.now() + getEssentialIntervalMs(essential),
               ringingUntil: undefined,
             })
           }
