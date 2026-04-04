@@ -1,20 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Plus, Activity } from 'lucide-react';
 import { Essential } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
+import type { EssentialMusicTheme } from '@/lib/essentialMusic';
 
 interface CreateEssentialModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreate: (essential: Essential) => void;
+  defaultMusicTheme: EssentialMusicTheme;
 }
 
-export function CreateEssentialModal({ isOpen, onClose, onCreate }: CreateEssentialModalProps) {
+export function CreateEssentialModal({ isOpen, onClose, onCreate, defaultMusicTheme }: CreateEssentialModalProps) {
   const [title, setTitle] = useState('');
   const [intervalMinutes, setIntervalMinutes] = useState(90);
   const [mediaUrl, setMediaUrl] = useState('');
   const [triggerMode, setTriggerMode] = useState<'alarm' | 'link'>('alarm');
+  const [musicTheme, setMusicTheme] = useState<EssentialMusicTheme>(defaultMusicTheme);
+
+  useEffect(() => {
+    if (isOpen) setMusicTheme(defaultMusicTheme);
+  }, [isOpen, defaultMusicTheme]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +38,7 @@ export function CreateEssentialModal({ isOpen, onClose, onCreate }: CreateEssent
       silent: false,
       reminderCount: 0,
       triggerMode,
+      musicTheme: triggerMode === 'alarm' ? musicTheme : undefined,
       ...(url ? { mediaUrl: url } : {}),
     };
 
@@ -39,6 +47,7 @@ export function CreateEssentialModal({ isOpen, onClose, onCreate }: CreateEssent
     setIntervalMinutes(90);
     setMediaUrl('');
     setTriggerMode('alarm');
+    setMusicTheme(defaultMusicTheme);
     onClose();
   };
 
@@ -109,6 +118,23 @@ export function CreateEssentialModal({ isOpen, onClose, onCreate }: CreateEssent
                     Link
                   </button>
                 </div>
+                {triggerMode === 'alarm' && (
+                  <div className="mt-3">
+                    <label className="block text-sm font-bold text-zinc-400 uppercase tracking-widest mb-2">
+                      Ringtone
+                    </label>
+                    <select
+                      value={musicTheme}
+                      onChange={(e) => setMusicTheme(e.target.value as EssentialMusicTheme)}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm font-bold text-white focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="calm">Calm</option>
+                      <option value="rock">Rock</option>
+                      <option value="techno">Techno</option>
+                      <option value="zen">Zen</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div>

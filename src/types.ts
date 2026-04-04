@@ -66,6 +66,8 @@ export interface Essential {
   reminderCount?: number;
   /** Which action should fire when due */
   triggerMode?: 'alarm' | 'link';
+  /** Alarm ringtone for this essential (falls back to app default if unset) */
+  musicTheme?: 'calm' | 'rock' | 'techno' | 'zen';
   /** When currently ringing/active, stop time (ms since epoch) */
   ringingUntil?: number;
 }

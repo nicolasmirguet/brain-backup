@@ -63,28 +63,53 @@ export function migrateEssentialMusicTheme(raw: unknown): EssentialMusicTheme {
 }
 
 let previewAudio: HTMLAudioElement | null = null;
+let previewTheme: EssentialMusicTheme | null = null;
 
-/** Short preview for the settings dropdown (does not affect essentials). */
-export function previewEssentialMusicTheme(theme: EssentialMusicTheme): void {
+export function stopEssentialMusicPreview(): void {
   if (previewAudio) {
     previewAudio.pause();
+    previewAudio.src = '';
     previewAudio = null;
   }
+  previewTheme = null;
+}
+
+export function isEssentialMusicPreviewPlaying(): boolean {
+  return previewAudio != null && !previewAudio.paused;
+}
+
+/**
+ * Short preview for the settings panel. Click again with the same theme to stop.
+ */
+export function previewEssentialMusicTheme(
+  theme: EssentialMusicTheme,
+  callbacks?: { onStart?: () => void; onEnd?: () => void },
+): void {
+  if (previewAudio && previewTheme === theme) {
+    stopEssentialMusicPreview();
+    callbacks?.onEnd?.();
+    return;
+  }
+  stopEssentialMusicPreview();
+  previewTheme = theme;
   const { url } = ESSENTIAL_MUSIC_TRACKS[theme];
   const audio = new Audio(url);
   previewAudio = audio;
-  const stopPreview = () => {
-    audio.pause();
-    audio.removeEventListener('timeupdate', onTimeUpdate);
-    if (previewAudio === audio) previewAudio = null;
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    stopEssentialMusicPreview();
+    callbacks?.onEnd?.();
   };
+  callbacks?.onStart?.();
   const onTimeUpdate = () => {
-    if (audio.currentTime >= 14) stopPreview();
+    if (audio.currentTime >= 14) finish();
   };
   audio.addEventListener('timeupdate', onTimeUpdate);
-  audio.addEventListener('ended', stopPreview);
-  audio.addEventListener('error', stopPreview);
+  audio.addEventListener('ended', finish);
+  audio.addEventListener('error', finish);
   void audio.play().catch(() => {
-    stopPreview();
+    finish();
   });
 }

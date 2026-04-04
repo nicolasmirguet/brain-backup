@@ -29,6 +29,7 @@ import {
   previewEssentialMusicTheme,
   type EssentialMusicTheme,
 } from '@/lib/essentialMusic';
+import { speakEssentialTitle, cancelEssentialSpeech } from '@/lib/essentialSpeech';
 
 const INITIAL_TASKS: Task[] = [
   {
@@ -103,6 +104,7 @@ const INITIAL_ESSENTIALS: Essential[] = [
     isActive: false,
     silent: false,
     reminderCount: 0,
+    musicTheme: 'calm',
   },
   {
     id: uuidv4(),
@@ -113,6 +115,7 @@ const INITIAL_ESSENTIALS: Essential[] = [
     isActive: false,
     silent: false,
     reminderCount: 0,
+    musicTheme: 'rock',
   },
   {
     id: 'essential-test-20s',
@@ -124,6 +127,7 @@ const INITIAL_ESSENTIALS: Essential[] = [
     isActive: false,
     silent: false,
     reminderCount: 0,
+    musicTheme: 'zen',
   },
 ];
 
@@ -169,7 +173,13 @@ export default function App() {
   const essentialAlarmThemeRef = useRef<EssentialMusicTheme>('calm');
   const autoOpenedDueLinkRef = useRef<Set<string>>(new Set());
   const essentialMusicAudioRef = useRef<HTMLAudioElement | null>(null);
-  const essentialAlarmBatchIdsRef = useRef<string[] | null>(null);
+  const essentialsRef = useRef(essentials);
+  const alarmQueueRef = useRef<string[]>([]);
+  const alarmPendingRef = useRef(new Set<string>());
+  const alarmBusyRef = useRef(false);
+  const playingAlarmIdRef = useRef<string | null>(null);
+  const processAlarmQueueRef = useRef<() => Promise<void>>(async () => {});
+  const [previewRingtonePlaying, setPreviewRingtonePlaying] = useState(false);
 
   const [energyLevel, setEnergyLevel] = useState<EnergyLevel>('functional');
   const [activeTab, setActiveTab] = useState<'tasks' | 'launchpads' | 'essentials' | 'history'>('tasks');
@@ -223,6 +233,10 @@ export default function App() {
           : baseList;
       const hydratedEssentials = merged.map((ess) => ({
         ...ess,
+        musicTheme:
+          ess.musicTheme != null && String(ess.musicTheme).length > 0
+            ? migrateEssentialMusicTheme(ess.musicTheme)
+            : undefined,
         isActive: false,
         reminderCount: 0,
         hasNotified: false,
@@ -292,6 +306,10 @@ export default function App() {
   }, [essentialAlarmTheme]);
 
   useEffect(() => {
+    essentialsRef.current = essentials;
+  }, [essentials]);
+
+  useEffect(() => {
     const stopEssentialMusicPlayback = () => {
       const a = essentialMusicAudioRef.current;
       if (a) {
@@ -301,81 +319,117 @@ export default function App() {
       }
     };
 
-    const finishAlarmBatchFromAudio = (ids: string[]) => {
-      stopEssentialMusicPlayback();
-      essentialAlarmBatchIdsRef.current = null;
-      setEssentials(prev =>
-        prev.map(e => {
-          if (!ids.includes(e.id) || !e.ringingUntil) return e;
-          return {
-            ...e,
-            ringingUntil: undefined,
-            nextDue: Date.now() + getEssentialIntervalMs(e),
-            hasNotified: false,
-            reminderCount: 0,
-          };
-        }),
-      );
+    const processAlarmQueue = async () => {
+      if (alarmBusyRef.current) return;
+      if (alarmQueueRef.current.length === 0) return;
+      alarmBusyRef.current = true;
+      try {
+        while (alarmQueueRef.current.length > 0) {
+          const id = alarmQueueRef.current[0];
+          const ess = essentialsRef.current.find((e) => e.id === id);
+          if (!ess || ess.isActive === false) {
+            alarmQueueRef.current.shift();
+            alarmPendingRef.current.delete(id);
+            continue;
+          }
+          if (ess.silent || (ess.triggerMode ?? 'alarm') === 'link') {
+            alarmQueueRef.current.shift();
+            alarmPendingRef.current.delete(id);
+            continue;
+          }
+
+          playingAlarmIdRef.current = id;
+          setTimerAlert(ess.title);
+          setTimeout(() => setTimerAlert(null), 10_000);
+
+          await speakEssentialTitle(ess.title);
+
+          const theme = ess.musicTheme ?? essentialAlarmThemeRef.current;
+          const { url } = ESSENTIAL_MUSIC_TRACKS[theme];
+          const audio = new Audio(url);
+          essentialMusicAudioRef.current = audio;
+
+          const placeholderEnd = Date.now() + MIN_ALARM_MUSIC_MS;
+          setEssentials((prev) =>
+            prev.map((e) =>
+              e.id === id
+                ? { ...e, ringingUntil: placeholderEnd, nextDue: placeholderEnd, hasNotified: true }
+                : e,
+            ),
+          );
+
+          await new Promise<void>((resolve) => {
+            const onMeta = () => {
+              const sec = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 120;
+              const sessionMs = Math.max(sec * 1000, MIN_ALARM_MUSIC_MS);
+              const end = Date.now() + sessionMs;
+              setEssentials((prev) =>
+                prev.map((e) =>
+                  e.id === id ? { ...e, ringingUntil: end, nextDue: end, hasNotified: true } : e,
+                ),
+              );
+            };
+            audio.addEventListener('loadedmetadata', onMeta, { once: true });
+            audio.addEventListener('ended', () => resolve(), { once: true });
+            audio.addEventListener('error', () => resolve(), { once: true });
+            void audio.play().catch(() => resolve());
+          });
+
+          setEssentials((prev) =>
+            prev.map((e) =>
+              e.id === id
+                ? {
+                    ...e,
+                    ringingUntil: undefined,
+                    nextDue: Date.now() + getEssentialIntervalMs(e),
+                    hasNotified: false,
+                    reminderCount: 0,
+                  }
+                : e,
+            ),
+          );
+
+          alarmQueueRef.current.shift();
+          alarmPendingRef.current.delete(id);
+          playingAlarmIdRef.current = null;
+        }
+      } finally {
+        alarmBusyRef.current = false;
+        playingAlarmIdRef.current = null;
+      }
     };
+
+    processAlarmQueueRef.current = processAlarmQueue;
 
     const runEssentialCheck = () => {
       if (!loadedRef.current) return;
-      setEssentials(prev => {
+      setEssentials((prev) => {
         const now = Date.now();
         const toStart = prev.filter(
-          e => e.isActive !== false && now >= e.nextDue && !e.ringingUntil,
+          (e) =>
+            e.isActive !== false &&
+            now >= e.nextDue &&
+            !e.ringingUntil &&
+            !alarmPendingRef.current.has(e.id),
         );
 
         if (toStart.length > 0) {
           const alarmNonSilent = toStart.filter(
-            e => (e.triggerMode ?? 'alarm') === 'alarm' && !e.silent,
+            (e) => (e.triggerMode ?? 'alarm') === 'alarm' && !e.silent,
           );
           queueMicrotask(() => {
+            for (const e of alarmNonSilent) {
+              if (!alarmQueueRef.current.includes(e.id)) {
+                alarmQueueRef.current.push(e.id);
+                alarmPendingRef.current.add(e.id);
+              }
+            }
             if (alarmNonSilent.length > 0) {
-              essentialAlarmBatchIdsRef.current = alarmNonSilent.map(e => e.id);
-              const theme = essentialAlarmThemeRef.current;
-              const { url } = ESSENTIAL_MUSIC_TRACKS[theme];
-              const audio = new Audio(url);
-              essentialMusicAudioRef.current = audio;
-
-              const applySessionMs = (sessionMs: number) => {
-                const end = Date.now() + sessionMs;
-                setEssentials(p =>
-                  p.map(e =>
-                    essentialAlarmBatchIdsRef.current?.includes(e.id)
-                      ? { ...e, ringingUntil: end, nextDue: end, hasNotified: true }
-                      : e,
-                  ),
-                );
-              };
-
-              audio.addEventListener('loadedmetadata', () => {
-                const sec = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 120;
-                const sessionMs = Math.max(sec * 1000, MIN_ALARM_MUSIC_MS);
-                applySessionMs(sessionMs);
-              });
-              audio.addEventListener('ended', () => {
-                const ids = essentialAlarmBatchIdsRef.current;
-                if (!ids?.length) return;
-                finishAlarmBatchFromAudio(ids);
-              });
-              audio.addEventListener('error', () => {
-                applySessionMs(MIN_ALARM_MUSIC_MS);
-              });
-              void audio.play().catch(() => {
-                applySessionMs(MIN_ALARM_MUSIC_MS);
-              });
-
-              const msg =
-                alarmNonSilent.length === 1
-                  ? `Essential Due: ${alarmNonSilent[0].title}!`
-                  : `Essentials Due: ${alarmNonSilent.map(e => e.title).join(', ')}!`;
-              setTimerAlert(msg);
-              setTimeout(() => setTimerAlert(null), 12_000);
+              void processAlarmQueue();
             }
 
             const linkItems = toStart.filter(
-              e => (e.triggerMode ?? 'alarm') === 'link' && !e.silent,
+              (e) => (e.triggerMode ?? 'alarm') === 'link' && !e.silent,
             );
             for (const linked of linkItems) {
               const openUrl = normalizeExternalUrl(linked.mediaUrl ?? linked.spotifyUrl);
@@ -390,18 +444,18 @@ export default function App() {
           });
         }
 
-        let stoppedBatchAudio = false;
-        return prev.map(e => {
+        let stoppedAudioForExpiry = false;
+        return prev.map((e) => {
           if (e.isActive === false) {
             return { ...e, ringingUntil: undefined };
           }
 
           if (e.ringingUntil && now >= e.ringingUntil) {
-            const batch = essentialAlarmBatchIdsRef.current;
-            if (batch?.includes(e.id) && !stoppedBatchAudio) {
-              stoppedBatchAudio = true;
+            if (playingAlarmIdRef.current === e.id && !stoppedAudioForExpiry) {
+              stoppedAudioForExpiry = true;
+              cancelEssentialSpeech();
               stopEssentialMusicPlayback();
-              essentialAlarmBatchIdsRef.current = null;
+              playingAlarmIdRef.current = null;
             }
             return {
               ...e,
@@ -421,10 +475,6 @@ export default function App() {
               const end = now + LINK_SESSION_MS;
               return { ...e, ringingUntil: end, nextDue: end, hasNotified: true };
             }
-            if ((e.triggerMode ?? 'alarm') === 'alarm' && !e.silent) {
-              const end = now + MIN_ALARM_MUSIC_MS;
-              return { ...e, ringingUntil: end, nextDue: end, hasNotified: true };
-            }
           }
 
           return e;
@@ -440,7 +490,12 @@ export default function App() {
     return () => {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVis);
+      cancelEssentialSpeech();
       stopEssentialMusicPlayback();
+      alarmQueueRef.current = [];
+      alarmPendingRef.current.clear();
+      alarmBusyRef.current = false;
+      playingAlarmIdRef.current = null;
     };
   }, []);
 
@@ -568,20 +623,39 @@ export default function App() {
   };
 
   const handleCreateEssential = (newEssential: Essential) => {
+    const mode = newEssential.triggerMode ?? 'alarm';
     setEssentials([
       {
         ...newEssential,
+        musicTheme:
+          mode === 'link' ? undefined : newEssential.musicTheme ?? essentialAlarmTheme,
         mediaUrl: normalizeExternalUrl(newEssential.mediaUrl ?? newEssential.spotifyUrl),
         spotifyUrl: undefined,
-        triggerMode: newEssential.triggerMode ?? 'alarm',
+        triggerMode: mode,
       },
       ...essentials,
     ]);
   };
 
   const handleUpdateEssential = (updated: Essential) => {
+    if (updated.isActive === false) {
+      alarmQueueRef.current = alarmQueueRef.current.filter((x) => x !== updated.id);
+      alarmPendingRef.current.delete(updated.id);
+      if (playingAlarmIdRef.current === updated.id) {
+        cancelEssentialSpeech();
+        const a = essentialMusicAudioRef.current;
+        if (a) {
+          a.pause();
+          a.src = '';
+          essentialMusicAudioRef.current = null;
+        }
+        playingAlarmIdRef.current = null;
+        alarmBusyRef.current = false;
+        void processAlarmQueueRef.current();
+      }
+    }
     setEssentials(
-      essentials.map(e =>
+      essentials.map((e) =>
         e.id === updated.id
           ? {
               ...updated,
@@ -623,18 +697,35 @@ export default function App() {
   };
 
   const handleRestartEssential = (id: string) => {
-    setEssentials(essentials.map(e => {
-      if (e.id === id) {
-        return {
-          ...e,
-          nextDue: Date.now() + getEssentialIntervalMs(e),
-          hasNotified: false,
-          reminderCount: 0,
-          ringingUntil: undefined,
-        };
+    alarmQueueRef.current = alarmQueueRef.current.filter((x) => x !== id);
+    alarmPendingRef.current.delete(id);
+    if (playingAlarmIdRef.current === id) {
+      cancelEssentialSpeech();
+      const a = essentialMusicAudioRef.current;
+      if (a) {
+        a.pause();
+        a.src = '';
+        essentialMusicAudioRef.current = null;
       }
-      return e;
-    }));
+      playingAlarmIdRef.current = null;
+      alarmBusyRef.current = false;
+      void processAlarmQueueRef.current();
+    }
+
+    setEssentials(
+      essentials.map((e) => {
+        if (e.id === id) {
+          return {
+            ...e,
+            nextDue: Date.now() + getEssentialIntervalMs(e),
+            hasNotified: false,
+            reminderCount: 0,
+            ringingUntil: undefined,
+          };
+        }
+        return e;
+      }),
+    );
   };
 
   useEffect(() => {
@@ -809,6 +900,7 @@ export default function App() {
           isOpen={isCreateEssentialModalOpen}
           onClose={() => setIsCreateEssentialModalOpen(false)}
           onCreate={handleCreateEssential}
+          defaultMusicTheme={essentialAlarmTheme}
         />
 
         <CreateChecklistModal
@@ -1027,9 +1119,9 @@ export default function App() {
               <div className="mb-4 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4" data-tour="essentials-alarm">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm font-black uppercase tracking-wider text-zinc-200">Alarm music</p>
+                    <p className="text-sm font-black uppercase tracking-wider text-zinc-200">Default ringtone</p>
                     <p className="text-xs text-zinc-500 mt-1">
-                      Calm, rock, techno, and zen use real genre-matched tracks (about 3+ min). When the track ends, the timer restarts. Link mode uses a 5-minute estimate for YouTube.
+                      Used for new essentials until you pick one on each card. Each reminder can use its own style. Listen stops when you click again.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1045,11 +1137,16 @@ export default function App() {
                     </select>
                     <button
                       type="button"
-                      onClick={() => previewEssentialMusicTheme(essentialAlarmTheme)}
-                      className="rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-3 py-2 text-sm font-black uppercase tracking-wider text-zinc-200"
-                      title="Test essential alarm"
+                      onClick={() =>
+                        previewEssentialMusicTheme(essentialAlarmTheme, {
+                          onStart: () => setPreviewRingtonePlaying(true),
+                          onEnd: () => setPreviewRingtonePlaying(false),
+                        })
+                      }
+                      className="rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-3 py-2 text-sm font-black uppercase tracking-wider text-zinc-200 min-w-[5.5rem]"
+                      title={previewRingtonePlaying ? 'Stop preview' : 'Listen to sample'}
                     >
-                      Test
+                      {previewRingtonePlaying ? 'Stop' : 'Listen'}
                     </button>
                   </div>
                 </div>
@@ -1059,10 +1156,12 @@ export default function App() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <AnimatePresence>
-                  {essentials.map(essential => (
+                  {essentials.map((essential, index) => (
                     <EssentialCard
                       key={essential.id}
                       essential={essential}
+                      colorIndex={index}
+                      defaultMusicTheme={essentialAlarmTheme}
                       onUpdate={handleUpdateEssential}
                       onDelete={handleDeleteEssential}
                       onRestart={handleRestartEssential}
