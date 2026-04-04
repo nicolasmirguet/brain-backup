@@ -1,0 +1,23 @@
+---
+description: GitHub repo, Netlify production site, and how to deploy this project
+alwaysApply: true
+---
+
+# Deploy and repository (do not forget)
+
+## Source of truth
+
+- **Git remote:** `https://github.com/nicolasmirguet/brain-backup.git` (branch: `main`).
+- **Production Netlify:** site slug **`relaxed-klepon-d7d676`** → **`https://relaxed-klepon-d7d676.netlify.app`**
+- **Continuous deployment:** Netlify is linked to **`nicolasmirguet/brain-backup`**; pushes to the connected branch trigger production builds.
+
+## How to deploy
+
+- **Default:** commit locally, then **`git push origin main`**. Do not assume a different repo or site.
+- **Avoid** running `netlify deploy` / `netlify deploy --prod` without an explicit **`netlify link`** to **`relaxed-klepon-d7d676`**. Unlinked CLI deploys can create a **new random Netlify site** and confuse production URLs and env vars.
+
+## If CLI deploy is needed
+
+1. `cd` to the app root (this repo: `package.json` + `netlify.toml` here).
+2. `npx netlify link` → choose **`relaxed-klepon-d7d676`**.
+3. Then `npx netlify deploy --prod` (only when Git deploy is not an option).
