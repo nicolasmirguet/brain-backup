@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { loadFromFirestore, saveToFirestore, auth, migrateLegacyUserData } from '@/lib/firebase';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { motion, AnimatePresence } from 'motion/react';
@@ -170,6 +170,8 @@ export default function App() {
   const [brainPoints, setBrainPoints] = useState<number>(0);
   const [essentialAlarmTheme, setEssentialAlarmTheme] = useState<EssentialMusicTheme>('calm');
   const loadedRef = useRef(false);
+  /** True only after React has committed brain-dump state from Firestore (avoids saving '' over server text). */
+  const brainDumpHydratedRef = useRef(false);
   const essentialAlarmThemeRef = useRef<EssentialMusicTheme>('calm');
   const autoOpenedDueLinkRef = useRef<Set<string>>(new Set());
   const essentialMusicAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -212,6 +214,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     loadedRef.current = false;
+    brainDumpHydratedRef.current = false;
     const uid = user.uid;
     Promise.all([
       loadFromFirestore<Task[]>('bb_tasks', INITIAL_TASKS, uid),
@@ -281,8 +284,20 @@ export default function App() {
     void saveToFirestore('bb_essential_alarm_theme', essentialAlarmTheme, user.uid);
   }, [essentialAlarmTheme, user]);
 
+  useLayoutEffect(() => {
+    if (!user) {
+      brainDumpHydratedRef.current = false;
+      return;
+    }
+    if (!loadedRef.current) {
+      brainDumpHydratedRef.current = false;
+      return;
+    }
+    brainDumpHydratedRef.current = true;
+  }, [dumpThoughts, dumpAiSnapshot, user]);
+
   useEffect(() => {
-    if (!loadedRef.current || !user) return;
+    if (!loadedRef.current || !user || !brainDumpHydratedRef.current) return;
     const t = window.setTimeout(() => {
       void saveToFirestore('bb_brain_dump_text', dumpThoughts, user.uid);
     }, 500);
@@ -290,7 +305,7 @@ export default function App() {
   }, [dumpThoughts, user]);
 
   useEffect(() => {
-    if (!loadedRef.current || !user) return;
+    if (!loadedRef.current || !user || !brainDumpHydratedRef.current) return;
     void saveToFirestore('bb_brain_dump_ai', dumpAiSnapshot, user.uid);
   }, [dumpAiSnapshot, user]);
 
